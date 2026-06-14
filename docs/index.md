@@ -37,7 +37,7 @@ hide:
 [:material-package-variant: PyPI](https://pypi.org/project/cello-framework/){ .md-button }
 
 <div class="hero-badges">
-  <code class="badge-version">v1.2.0</code>
+  <code class="badge-version">v1.2.2</code>
   <code class="badge-tests">441 tests passing</code>
   <code class="badge-license">MIT License</code>
   <code class="badge-python">Python 3.12+</code>
@@ -370,21 +370,23 @@ How Cello stacks up against popular Python web frameworks (4 workers, 5 processe
 
 <!-- ===== WHAT'S NEW ===== -->
 
-## :material-creation: What's New in v1.2.0
+## :material-creation: What's New in v1.2.2
 
 <div class="whats-new-box" markdown>
 
-!!! tip "v1.2.0 -- Bug Fixes & Rust-Native AsyncClient"
+!!! tip "v1.2.2 -- Security Fixes & Full Middleware Python API"
 
-    Cello v1.2.0 ships critical bug fixes and a brand-new Rust-native HTTP client — the GIL is never held during HTTP I/O.
+    Cello v1.2.2 is a security-focused patch release that also adds the missing Python middleware API.
 
-    - :material-bug-check: **Critical Bug Fixes** -- Shutdown coroutine now properly awaited, `KeyboardInterrupt` handled cleanly in shutdown handler, `request.redis` AttributeError resolved.
+    - :material-shield-bug: **CSRF HttpOnly Fix** -- CSRF double-submit cookie was accidentally `HttpOnly`, breaking all AJAX/SPA state-changing requests. Fixed.
 
-    - :material-language-rust: **Rust-Native AsyncClient** -- Backed by `reqwest + Tokio` with HTTP/2, gzip, and rustls. GIL is never held during HTTP I/O — true async performance.
+    - :material-lock: **Auth Skip-Path Bypass Fix** -- `skip_path("/health")` no longer bypasses `/healthz` or other prefixed paths.
 
-    - :material-database: **Redis Lua Scripting** -- New `eval`, `evalsha`, and `script_load` methods for atomic server-side operations.
+    - :material-middleware: **Full Middleware Python API** -- `app.use(JwtAuth(...))`, `app.enable_jwt()`, `app.enable_session()`, `app.enable_csrf()`, `app.enable_basic_auth()`, `app.enable_api_key()` — all implemented.
 
-    [:material-tag: Full Release Notes](releases/v1.2.0.md){ .md-button .md-button--primary }
+    - :material-import: **Correct Import Paths** -- All docs updated: `from cello import RoleGuard` (not `from cello.guards`), `from cello.middleware import JwtAuth` now works.
+
+    [:material-tag: Full Release Notes](releases/v1.2.2.md){ .md-button .md-button--primary }
     [:material-book-open-variant: Migration Guide](releases/migration.md){ .md-button }
 
 </div>
