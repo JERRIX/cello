@@ -254,8 +254,7 @@ All Python-side decorators and wrappers in Cello automatically detect whether a 
 | Pydantic validation | Yes | Validates the request body, then awaits the handler |
 
 ```python
-from cello import App, cache
-from cello.guards import RoleGuard
+from cello import App, cache, RoleGuard
 from pydantic import BaseModel
 
 app = App()

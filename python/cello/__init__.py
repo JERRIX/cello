@@ -661,6 +661,102 @@ class App:
         """
         self._app.enable_circuit_breaker(failure_threshold, reset_timeout, half_open_target, failure_codes)
 
+    def enable_jwt(self, config: "JwtConfig", skip_paths: list = None):
+        """Enable JWT authentication middleware.
+
+        Args:
+            config: JwtConfig instance with secret, algorithm, etc.
+            skip_paths: List of paths to exclude from JWT validation.
+        """
+        self._app.enable_jwt(config, skip_paths)
+
+    def enable_session(self, config: "SessionConfig" = None):
+        """Enable session middleware (in-memory store).
+
+        Args:
+            config: SessionConfig instance (optional).
+        """
+        self._app.enable_session(config)
+
+    def enable_security_headers(self, strict: bool = False):
+        """Enable security headers middleware (HSTS, X-Frame-Options, etc.).
+
+        Args:
+            strict: Use stricter CSP and CORS settings (default: False).
+        """
+        self._app.enable_security_headers(strict)
+
+    def enable_csrf(self):
+        """Enable CSRF protection middleware (double-submit cookie pattern)."""
+        self._app.enable_csrf()
+
+    def enable_basic_auth(self, credentials: dict, realm: str = "Restricted"):
+        """Enable HTTP Basic authentication middleware.
+
+        Args:
+            credentials: Dict of {username: password} pairs.
+            realm: WWW-Authenticate realm string.
+        """
+        self._app.enable_basic_auth(credentials, realm)
+
+    def enable_api_key(self, keys: dict, header: str = "X-API-Key"):
+        """Enable API Key authentication middleware.
+
+        Args:
+            keys: Dict of {api_key: client_name} pairs.
+            header: Header name that carries the key (default: ``"X-API-Key"``).
+        """
+        self._app.enable_api_key(keys, header)
+
+    def use(self, middleware):
+        """Apply a middleware instance to the application.
+
+        Accepts any middleware object from ``cello.middleware``:
+
+        - :class:`~cello.middleware.JwtAuth` → :meth:`enable_jwt`
+        - :class:`~cello.middleware.BasicAuth` → :meth:`enable_basic_auth`
+        - :class:`~cello.middleware.ApiKeyAuth` → :meth:`enable_api_key`
+        - :class:`~cello.middleware.CsrfConfig` → :meth:`enable_csrf`
+        - :class:`~cello.middleware.SessionConfig` → :meth:`enable_session`
+        - :class:`~cello.middleware.SecurityHeadersConfig` → :meth:`enable_security_headers`
+
+        Example::
+
+            from cello import App, JwtConfig
+            from cello.middleware import JwtAuth
+
+            app = App()
+            app.use(JwtAuth(JwtConfig(secret="your-secret", algorithm="HS256")))
+        """
+        # Import lazily to avoid circular imports
+        from cello.middleware import JwtAuth, BasicAuth, ApiKeyAuth, CsrfConfig
+
+        if isinstance(middleware, JwtAuth):
+            self.enable_jwt(middleware.config, middleware.skip_paths or None)
+        elif isinstance(middleware, BasicAuth):
+            self.enable_basic_auth(middleware.credentials, middleware.realm)
+        elif isinstance(middleware, ApiKeyAuth):
+            self.enable_api_key(middleware.keys, middleware.header)
+        elif isinstance(middleware, CsrfConfig):
+            self.enable_csrf()
+        else:
+            # Try SessionConfig (from cello._cello)
+            try:
+                from cello._cello import SessionConfig, SecurityHeadersConfig
+                if isinstance(middleware, SessionConfig):
+                    self.enable_session(middleware)
+                    return
+                if isinstance(middleware, SecurityHeadersConfig):
+                    self.enable_security_headers()
+                    return
+            except ImportError:
+                pass
+            raise TypeError(
+                f"Unknown middleware type: {type(middleware).__name__}. "
+                "Use one of: JwtAuth, BasicAuth, ApiKeyAuth, CsrfConfig, "
+                "SessionConfig, SecurityHeadersConfig."
+            )
+
     # -------------------------------------------------------------------------
     # v1.1.0 — MiniJinja template engine
     # -------------------------------------------------------------------------

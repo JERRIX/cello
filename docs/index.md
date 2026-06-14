@@ -178,8 +178,7 @@ hide:
 === ":material-api: REST API"
 
     ```python
-    from cello import App, Response, Blueprint
-    from cello.guards import RoleGuard
+    from cello import App, Response, Blueprint, RoleGuard
 
     app = App()
     api = Blueprint("api", url_prefix="/api/v1")

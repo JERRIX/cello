@@ -183,8 +183,7 @@ app.register_blueprint(v2)
 Apply middleware to all routes within a blueprint. Async handlers work seamlessly with blueprint-level middleware and per-route guards:
 
 ```python
-from cello import App, Blueprint
-from cello.guards import RoleGuard, Authenticated
+from cello import App, Blueprint, RoleGuard, Authenticated
 
 # Public blueprint -- no auth required
 public_bp = Blueprint("/public")

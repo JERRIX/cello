@@ -261,7 +261,7 @@ app.use(api_auth)
 Control access with composable guards:
 
 ```python
-from cello.guards import RoleGuard, PermissionGuard, And, Or
+from cello import RoleGuard, PermissionGuard, And, Or
 
 # Simple role check
 admin_only = RoleGuard(["admin"])

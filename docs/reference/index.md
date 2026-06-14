@@ -78,7 +78,7 @@ The building blocks of every Cello application -- from creating your app to hand
 
     Role-based and permission-based access control. Composable guards that protect routes and blueprints.
 
-    **Key classes:** `RoleGuard` `PermissionGuard` `CompositeGuard`
+    **Key classes:** `RoleGuard` `PermissionGuard` `Authenticated` `And` `Or` `Not`
 
     [:octicons-arrow-right-24: Guards Reference](api/guards.md)
 
@@ -166,8 +166,8 @@ The most commonly used classes and functions at a glance.
 | [`Response`](api/response.md) | `cello` | HTTP response builder |
 | [`Blueprint`](api/blueprint.md) | `cello` | Route grouping |
 | [`Depends`](api/context.md) | `cello` | Dependency injection marker |
-| [`RoleGuard`](api/guards.md) | `cello.guards` | Role-based access guard |
-| [`PermissionGuard`](api/guards.md) | `cello.guards` | Permission-based access guard |
+| [`RoleGuard`](api/guards.md) | `cello` | Role-based access guard |
+| [`PermissionGuard`](api/guards.md) | `cello` | Permission-based access guard |
 | [`JwtConfig`](config/security.md) | `cello.middleware` | JWT authentication config |
 | [`RateLimitConfig`](config/middleware.md) | `cello.middleware` | Rate limiting config |
 | [`SessionConfig`](config/security.md) | `cello.middleware` | Session management config |
@@ -219,8 +219,7 @@ The most commonly used classes and functions at a glance.
 === "Guards & Auth"
 
     ```python
-    from cello import App
-    from cello.guards import RoleGuard, PermissionGuard
+    from cello import App, RoleGuard, PermissionGuard
     from cello.middleware import JwtConfig, JwtAuth
 
     app = App()

@@ -728,9 +728,9 @@ Add a global guard to all routes.
 > *Since v0.5.0*
 
 ```python
-from cello.guards import AuthenticatedGuard
+from cello import Authenticated
 
-app.add_guard(AuthenticatedGuard())
+app.add_guard(Authenticated())
 ```
 
 | Parameter | Type | Description |

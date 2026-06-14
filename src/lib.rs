@@ -302,6 +302,97 @@ impl Cello {
         self.middleware.add(mw);
     }
 
+    /// Enable JWT authentication middleware.
+    #[pyo3(signature = (config, skip_paths=None))]
+    pub fn enable_jwt(&mut self, config: PyJwtConfig, skip_paths: Option<Vec<String>>) -> PyResult<()> {
+        use jsonwebtoken::Algorithm;
+        let alg = match config.algorithm.as_str() {
+            "HS256" => Algorithm::HS256,
+            "HS384" => Algorithm::HS384,
+            "HS512" => Algorithm::HS512,
+            _ => return Err(pyo3::exceptions::PyValueError::new_err(
+                format!("Unsupported JWT algorithm: {}", config.algorithm)
+            )),
+        };
+        let jwt_config = middleware::auth::JwtConfig {
+            secret: config.secret.into_bytes(),
+            algorithm: alg,
+            issuer: None,
+            audience: None,
+            leeway: config.leeway,
+        };
+        let mut jwt_auth = middleware::auth::JwtAuth::new(jwt_config);
+        jwt_auth = jwt_auth.header_name(&config.header_name);
+        if let Some(cookie) = config.cookie_name {
+            jwt_auth = jwt_auth.cookie(&cookie);
+        }
+        if let Some(paths) = skip_paths {
+            for path in paths {
+                jwt_auth = jwt_auth.skip_path(&path);
+            }
+        }
+        self.middleware.add(jwt_auth);
+        Ok(())
+    }
+
+    /// Enable session middleware.
+    #[pyo3(signature = (config=None))]
+    pub fn enable_session(&mut self, config: Option<PySessionConfig>) {
+        let mut mw = middleware::session::SessionMiddleware::new();
+        if let Some(cfg) = config {
+            mw = mw.cookie_name(&cfg.cookie_name);
+            mw = mw.ttl(std::time::Duration::from_secs(cfg.max_age));
+        }
+        self.middleware.add(mw);
+    }
+
+    /// Enable security headers middleware.
+    #[pyo3(signature = (strict=false))]
+    pub fn enable_security_headers(&mut self, strict: bool) {
+        let mw = if strict {
+            middleware::security::SecurityHeadersMiddleware::strict()
+        } else {
+            middleware::security::SecurityHeadersMiddleware::new()
+        };
+        self.middleware.add(mw);
+    }
+
+    /// Enable CSRF protection middleware.
+    pub fn enable_csrf(&mut self) {
+        let mw = middleware::csrf::CsrfMiddleware::new();
+        self.middleware.add(mw);
+    }
+
+    /// Enable Basic authentication middleware.
+    #[pyo3(signature = (credentials, realm=None))]
+    pub fn enable_basic_auth(
+        &mut self,
+        credentials: std::collections::HashMap<String, String>,
+        realm: Option<String>,
+    ) {
+        let realm_str = realm.unwrap_or_else(|| "Restricted".to_string());
+        let creds = std::sync::Arc::new(credentials);
+        let mw = middleware::auth::BasicAuth::with_validator(move |u, p| {
+            creds.get(u).map(|stored| stored == p).unwrap_or(false)
+        })
+        .realm(&realm_str);
+        self.middleware.add(mw);
+    }
+
+    /// Enable API Key authentication middleware.
+    #[pyo3(signature = (keys, header=None))]
+    pub fn enable_api_key(
+        &mut self,
+        keys: std::collections::HashMap<String, String>,
+        header: Option<String>,
+    ) {
+        let mut mw = middleware::auth::ApiKeyAuth::from_keys(keys);
+        if let Some(h) = header {
+            mw = mw.header(&h);
+        }
+        self.middleware.add(mw);
+    }
+
     /// Register a startup handler.
     pub fn on_startup(&mut self, handler: PyObject) {
         self.startup_handlers.push(handler);

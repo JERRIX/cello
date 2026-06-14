@@ -172,8 +172,7 @@ app.use(ApiKeyAuth(keys={"key1": "service-a"}, header="X-API-Key"))
 All Python-side middleware wrappers -- including the `@cache` decorator, guard wrappers, and Pydantic validation -- fully support async handlers. Each wrapper uses `inspect.iscoroutinefunction()` to detect async handlers at decoration time and generates the appropriate sync or async wrapper. This means you can freely use `async def` handlers with any combination of caching, guards, and validation without encountering unawaited coroutine issues.
 
 ```python
-from cello import App, cache
-from cello.guards import RoleGuard
+from cello import App, cache, RoleGuard
 from pydantic import BaseModel
 
 class Item(BaseModel):
