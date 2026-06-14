@@ -5,7 +5,7 @@ icon: material/tag-multiple
 tags:
   - Release Notes
   - Changelog
-  - v1.2.3
+  - v1.2.4
   - Migration
 ---
 
@@ -13,20 +13,19 @@ tags:
 
 ---
 
-## :material-new-box: Latest Release — v1.2.3
+## :material-new-box: Latest Release — v1.2.4
 
-!!! success "Cello v1.2.3 — Full Middleware Python API & Correct Import Paths (June 2026)"
+!!! success "Cello v1.2.4 — Critical Fix: async def Handlers (June 2026)"
 
-    Exposes the complete authentication and security middleware suite to Python, and fixes all incorrect import paths across the documentation.
+    Fixes a critical regression introduced in v1.2.1 where all `async def` route handlers silently returned 500 errors due to `pyo3_asyncio` not being initialised after the server startup change.
 
     **Highlights:**
 
-    - :material-package: **`cello.middleware` module** — `from cello.middleware import JwtAuth, BasicAuth, ApiKeyAuth, CsrfConfig` now works
-    - :material-api: **`app.use(middleware)`** — universal dispatcher for all auth/security middleware
-    - :material-language-rust: **6 new Rust-backed methods** — `enable_jwt()`, `enable_session()`, `enable_security_headers()`, `enable_csrf()`, `enable_basic_auth()`, `enable_api_key()`
-    - :material-import: **All import paths corrected** — `from cello import RoleGuard` (not `from cello.guards`)
+    - :material-bug-check: **All `async def` handlers now work** — coroutines are driven via `tokio::task::spawn_blocking + asyncio.run()`
+    - :material-test-tube: **New test suite** — `tests/verify_async_client.py` covers all HTTP methods with a local echo server
+    - :material-arrow-up: **Drop-in upgrade** from v1.2.3 — no API changes
 
-    [:octicons-arrow-right-24: Full v1.2.3 Release Notes](v1.2.3.md){ .md-button .md-button--primary }
+    [:octicons-arrow-right-24: Full v1.2.4 Release Notes](v1.2.4.md){ .md-button .md-button--primary }
     [:octicons-arrow-right-24: Migration Guide](migration.md){ .md-button }
 
 ---
@@ -36,7 +35,8 @@ tags:
 ```mermaid
 timeline
     title Cello Framework Releases
-    2026-06 : v1.2.3 - Full Middleware Python API & Docs Fixes
+    2026-06 : v1.2.4 - Critical Fix: async def Handlers
+            : v1.2.3 - Full Middleware Python API & Docs Fixes
             : v1.2.2 - Security & Bug Fixes (CSRF, skip_path, rate limiter)
             : v1.2.1 - Critical Bug Fixes (server bind, ProblemDetails export)
             : v1.2.0 - Redis Lua Scripting & Rust-Native AsyncClient
@@ -58,6 +58,16 @@ timeline
 ## :material-history: All Releases
 
 <div class="grid cards" markdown>
+
+-   :material-bug-check:{ .lg .middle } **v1.2.4** — Critical Async Fix
+
+    ---
+
+    Fixes all `async def` handlers returning 500 since v1.2.1. Coroutines now driven via `spawn_blocking + asyncio.run()`.
+
+    :material-calendar: June 2026
+
+    [:octicons-arrow-right-24: Release Notes](v1.2.4.md)
 
 -   :material-api:{ .lg .middle } **v1.2.3** — Full Middleware Python API
 
@@ -238,13 +248,13 @@ timeline
     pip install --upgrade cello-framework
 
     # Pin to a specific version
-    pip install cello-framework==1.2.3
+    pip install cello-framework==1.2.4
     ```
 
 === "requirements.txt"
 
     ```text
-    cello-framework>=1.2.3,<2.0.0
+    cello-framework>=1.2.4,<2.0.0
     ```
 
 === "pyproject.toml"
@@ -252,7 +262,7 @@ timeline
     ```toml
     [project]
     dependencies = [
-        "cello-framework>=1.2.3,<2.0.0",
+        "cello-framework>=1.2.4,<2.0.0",
     ]
     ```
 

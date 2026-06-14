@@ -37,7 +37,7 @@ hide:
 [:material-package-variant: PyPI](https://pypi.org/project/cello-framework/){ .md-button }
 
 <div class="hero-badges">
-  <code class="badge-version">v1.2.3</code>
+  <code class="badge-version">v1.2.4</code>
   <code class="badge-tests">441 tests passing</code>
   <code class="badge-license">MIT License</code>
   <code class="badge-python">Python 3.12+</code>
@@ -370,23 +370,21 @@ How Cello stacks up against popular Python web frameworks (4 workers, 5 processe
 
 <!-- ===== WHAT'S NEW ===== -->
 
-## :material-creation: What's New in v1.2.3
+## :material-creation: What's New in v1.2.4
 
 <div class="whats-new-box" markdown>
 
-!!! tip "v1.2.3 -- Full Middleware Python API & Correct Import Paths"
+!!! tip "v1.2.4 — Critical Fix: async def Handlers Now Work Correctly"
 
-    Cello v1.2.3 exposes the complete auth & security middleware suite to Python, and fixes all doc import errors.
+    Cello v1.2.4 fixes a critical regression introduced in v1.2.1 where all `async def` route handlers silently returned 500 errors.
 
-    - :material-api: **`app.use(middleware)`** -- New universal dispatcher: `app.use(JwtAuth(...))`, `app.use(BasicAuth(...))`, `app.use(ApiKeyAuth(...))`, `app.use(CsrfConfig())`.
+    - :material-bug-check: **Async handlers fixed** — `async def` handlers now execute correctly; `pyo3_asyncio::tokio::into_future` was failing silently after the v1.2.1 server startup change.
 
-    - :material-package: **`cello.middleware` module** -- `from cello.middleware import JwtAuth, BasicAuth, ApiKeyAuth, CsrfConfig` now works.
+    - :material-language-rust: **`spawn_blocking + asyncio.run()`** — coroutines are now driven via Tokio's blocking thread pool, releasing the main Tokio thread during Python I/O waits.
 
-    - :material-language-rust: **6 new Rust-backed methods** -- `enable_jwt()`, `enable_session()`, `enable_security_headers()`, `enable_csrf()`, `enable_basic_auth()`, `enable_api_key()` added to App.
+    - :material-test-tube: **New async client test suite** — `tests/verify_async_client.py` covers all HTTP methods with a self-contained local echo server.
 
-    - :material-import: **All import paths corrected** -- `from cello import RoleGuard` (not `from cello.guards`). All 9 affected doc pages fixed.
-
-    [:material-tag: Full Release Notes](releases/v1.2.3.md){ .md-button .md-button--primary }
+    [:material-tag: Full Release Notes](releases/v1.2.4.md){ .md-button .md-button--primary }
     [:material-book-open-variant: Migration Guide](releases/migration.md){ .md-button }
 
 </div>
