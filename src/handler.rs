@@ -229,20 +229,32 @@ impl HandlerRegistry {
                 Ok((call_result, is_coro))
             })?;
 
-        // ── Phase 2 (GIL released during I/O waits): drive coroutine via Tokio ─
+        // ── Phase 2 (GIL released during I/O waits): drive coroutine ────────────
         //
-        // pyo3_asyncio::tokio::into_future wraps the Python coroutine as a Rust
-        // Future that Tokio can poll. The GIL is acquired only when the coroutine
-        // has work to do (Python bytecode execution) and released between steps,
-        // so other Tokio tasks can make progress during I/O waits.
+        // pyo3_asyncio::tokio::into_future requires pyo3_asyncio to be initialised
+        // via its own `run()` entry point. Since v1.2.1 the server uses native
+        // `py.allow_threads + tokio::block_on` (fixing port binding on Python 3.12+),
+        // so pyo3_asyncio is never initialised and into_future fails at runtime.
+        //
+        // Fix: offload to a blocking thread via spawn_blocking so the Tokio thread
+        // is released while asyncio.run() drives the coroutine to completion.
+        // asyncio.run() creates a fresh event loop per call; the overhead is small
+        // (~0.1 ms) compared to typical handler I/O.
         let final_result: PyObject = if is_coroutine {
-            let future = Python::with_gil(|py| {
-                pyo3_asyncio::tokio::into_future(raw_result.as_ref(py))
-                    .map_err(|e| format!("Async setup error: {e}"))
-            })?;
-            // GIL is fully released here while Tokio drives the coroutine
-            future
-                .await
+            let (tx, rx) = tokio::sync::oneshot::channel::<Result<PyObject, String>>();
+            let coro = raw_result;
+            tokio::task::spawn_blocking(move || {
+                let result = Python::with_gil(|py| -> Result<PyObject, String> {
+                    let asyncio = py.import("asyncio").map_err(|e| e.to_string())?;
+                    asyncio
+                        .call_method1("run", (coro.as_ref(py),))
+                        .map(|r| r.into_py(py))
+                        .map_err(|e| e.to_string())
+                });
+                let _ = tx.send(result);
+            });
+            rx.await
+                .map_err(|e| format!("Handler channel error: {e}"))?
                 .map_err(|e| format!("Async handler error: {e}"))?
         } else {
             raw_result

@@ -4,7 +4,7 @@
 
 **Cello** is an ultra-fast, Rust-powered Python async web framework designed to achieve C-level performance on the hot path while maintaining Python's developer experience. It's the successor to frameworks like FastAPI, Robyn, and Litestar, combining their best features with pure Rust implementation for maximum performance.
 
-**Version:** 1.2.3
+**Version:** 1.2.4
 **License:** MIT
 **Python Requirement:** 3.12+
 **Author:** Jagadeesh Katla
@@ -346,6 +346,7 @@ def handle_value_error(request, exc):
 
 ## Version History
 
+- **v1.2.4**: Critical fix — async handlers broken since v1.2.1; `pyo3_asyncio::tokio::into_future` failed silently after server startup switched to `py.allow_threads + block_on` (v1.2.1), causing all `async def` handlers to return 500; fixed by driving coroutines via `tokio::task::spawn_blocking + asyncio.run()` (`handler.rs`)
 - **v1.2.3**: Full middleware Python API — `cello.middleware` module with `JwtAuth`, `BasicAuth`, `ApiKeyAuth`, `CsrfConfig`, `AdaptiveRateLimitConfig`; `app.use()` dispatcher; 6 new `enable_*` methods on App (`enable_jwt`, `enable_session`, `enable_security_headers`, `enable_csrf`, `enable_basic_auth`, `enable_api_key`); all docs import paths corrected (`from cello import RoleGuard` not `cello.guards`)
 - **v1.2.2**: Security & bug fixes — CSRF `HttpOnly` on double-submit cookie (critical, broke all AJAX CSRF); all middleware `skip_path` prefix bypass fixed via `path_matches_skip()` helper; `FixedWindowStore` window_start never updated after reset; unused `mut` cleaned in minijinja tests
 - **v1.2.1**: Bug fixes — server port never bound (`pyo3_asyncio` replaced with native `py.allow_threads` + `tokio::block_on`); `ProblemDetails` was missing from Python module export; `And`/`Or` guards now accept both `*args` and list styles; CSRF `HttpOnly` removed from double-submit cookie (JS must read it); `FixedWindowStore` window_start never updated after reset; all middleware `skip_path` used raw `starts_with` allowing prefix bypass; doc corrections (`type_uri` not `type_url`)
