@@ -296,7 +296,7 @@ __all__ = [
     "validate_rate_limit_config",
     "validate_tls_config",
 ]
-__version__ = "1.2.2"
+__version__ = "1.2.3"
 
 
 class Blueprint:

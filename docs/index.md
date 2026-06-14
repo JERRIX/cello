@@ -37,7 +37,7 @@ hide:
 [:material-package-variant: PyPI](https://pypi.org/project/cello-framework/){ .md-button }
 
 <div class="hero-badges">
-  <code class="badge-version">v1.2.2</code>
+  <code class="badge-version">v1.2.3</code>
   <code class="badge-tests">441 tests passing</code>
   <code class="badge-license">MIT License</code>
   <code class="badge-python">Python 3.12+</code>
@@ -370,23 +370,23 @@ How Cello stacks up against popular Python web frameworks (4 workers, 5 processe
 
 <!-- ===== WHAT'S NEW ===== -->
 
-## :material-creation: What's New in v1.2.2
+## :material-creation: What's New in v1.2.3
 
 <div class="whats-new-box" markdown>
 
-!!! tip "v1.2.2 -- Security Fixes & Full Middleware Python API"
+!!! tip "v1.2.3 -- Full Middleware Python API & Correct Import Paths"
 
-    Cello v1.2.2 is a security-focused patch release that also adds the missing Python middleware API.
+    Cello v1.2.3 exposes the complete auth & security middleware suite to Python, and fixes all doc import errors.
 
-    - :material-shield-bug: **CSRF HttpOnly Fix** -- CSRF double-submit cookie was accidentally `HttpOnly`, breaking all AJAX/SPA state-changing requests. Fixed.
+    - :material-api: **`app.use(middleware)`** -- New universal dispatcher: `app.use(JwtAuth(...))`, `app.use(BasicAuth(...))`, `app.use(ApiKeyAuth(...))`, `app.use(CsrfConfig())`.
 
-    - :material-lock: **Auth Skip-Path Bypass Fix** -- `skip_path("/health")` no longer bypasses `/healthz` or other prefixed paths.
+    - :material-package: **`cello.middleware` module** -- `from cello.middleware import JwtAuth, BasicAuth, ApiKeyAuth, CsrfConfig` now works.
 
-    - :material-middleware: **Full Middleware Python API** -- `app.use(JwtAuth(...))`, `app.enable_jwt()`, `app.enable_session()`, `app.enable_csrf()`, `app.enable_basic_auth()`, `app.enable_api_key()` — all implemented.
+    - :material-language-rust: **6 new Rust-backed methods** -- `enable_jwt()`, `enable_session()`, `enable_security_headers()`, `enable_csrf()`, `enable_basic_auth()`, `enable_api_key()` added to App.
 
-    - :material-import: **Correct Import Paths** -- All docs updated: `from cello import RoleGuard` (not `from cello.guards`), `from cello.middleware import JwtAuth` now works.
+    - :material-import: **All import paths corrected** -- `from cello import RoleGuard` (not `from cello.guards`). All 9 affected doc pages fixed.
 
-    [:material-tag: Full Release Notes](releases/v1.2.2.md){ .md-button .md-button--primary }
+    [:material-tag: Full Release Notes](releases/v1.2.3.md){ .md-button .md-button--primary }
     [:material-book-open-variant: Migration Guide](releases/migration.md){ .md-button }
 
 </div>
