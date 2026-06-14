@@ -5,8 +5,7 @@ icon: material/tag-multiple
 tags:
   - Release Notes
   - Changelog
-  - v1.2.0
-  - v1.1.0
+  - v1.2.3
   - Migration
 ---
 
@@ -14,36 +13,39 @@ tags:
 
 ---
 
-## :material-new-box: Latest Release -- v1.0.1
+## :material-new-box: Latest Release — v1.2.3
 
-!!! success "Cello v1.0.1 -- Cross-Platform & Compatibility Patch (February 2026)"
+!!! success "Cello v1.2.3 — Full Middleware Python API & Correct Import Paths (June 2026)"
 
-    Patch release with **cross-platform fixes** and **async compatibility improvements** on top of the stable v1.0.0 release.
+    Exposes the complete authentication and security middleware suite to Python, and fixes all incorrect import paths across the documentation.
 
-    **Headline fixes:**
+    **Highlights:**
 
-    - :material-microsoft-windows: **Windows Support** -- multi-worker subprocess mode, signal handling, UNC path normalization
-    - :material-chip: **ARM Architecture** -- `serde_json` fallback for non-SIMD platforms
-    - :material-sync: **Async Compatibility** -- async handler support in validation, guards, cache decorator, and blueprints
-    - :material-export: **Export Completeness** -- guards and database classes added to `cello.__all__`
+    - :material-package: **`cello.middleware` module** — `from cello.middleware import JwtAuth, BasicAuth, ApiKeyAuth, CsrfConfig` now works
+    - :material-api: **`app.use(middleware)`** — universal dispatcher for all auth/security middleware
+    - :material-language-rust: **6 new Rust-backed methods** — `enable_jwt()`, `enable_session()`, `enable_security_headers()`, `enable_csrf()`, `enable_basic_auth()`, `enable_api_key()`
+    - :material-import: **All import paths corrected** — `from cello import RoleGuard` (not `from cello.guards`)
 
-    [:octicons-arrow-right-24: Full v1.0.1 Release Notes](v1.0.1.md){ .md-button .md-button--primary }
-    [:octicons-arrow-right-24: Migration Guide](migration.md#010x-to-10x){ .md-button }
+    [:octicons-arrow-right-24: Full v1.2.3 Release Notes](v1.2.3.md){ .md-button .md-button--primary }
+    [:octicons-arrow-right-24: Migration Guide](migration.md){ .md-button }
 
 ---
 
 ## :material-timeline: Version Timeline
 
-Every release of Cello, from the stable 1.0 through the beta series.
-
 ```mermaid
 timeline
     title Cello Framework Releases
+    2026-06 : v1.2.3 - Full Middleware Python API & Docs Fixes
+            : v1.2.2 - Security & Bug Fixes (CSRF, skip_path, rate limiter)
+            : v1.2.1 - Critical Bug Fixes (server bind, ProblemDetails export)
+            : v1.2.0 - Redis Lua Scripting & Rust-Native AsyncClient
+            : v1.1.0 - MiniJinja Jinja2-Compatible Templates
     2026-02 : v1.0.1 - Cross-Platform & Compatibility Patch
-           : v1.0.0 - Production Ready (Stable)
-           : v0.10.0 - Event Sourcing, CQRS, Saga
-           : v0.9.0 - GraphQL, gRPC, Message Queues
-    2026-02 : v0.8.0 - Database Pooling, Redis, Transactions
+            : v1.0.0 - Production Ready (Stable)
+            : v0.10.0 - Event Sourcing, CQRS, Saga
+            : v0.9.0 - GraphQL, gRPC, Message Queues
+            : v0.8.0 - Database Pooling, Redis, Transactions
     2026-01 : v0.7.0 - OpenTelemetry, Health Checks
     2025-12 : v0.6.0 - Smart Caching, Adaptive Rate Limiting
     2025-10 : v0.5.0 - DI, Guards (RBAC), Prometheus
@@ -57,17 +59,67 @@ timeline
 
 <div class="grid cards" markdown>
 
--   :material-wrench:{ .lg .middle } **v1.0.1** -- Cross-Platform & Compatibility Patch
+-   :material-api:{ .lg .middle } **v1.2.3** — Full Middleware Python API
 
     ---
 
-    Windows multi-worker and signal fixes, ARM JSON fallback, async compatibility for guards/cache/blueprints, export completeness.
+    `cello.middleware` module, `app.use()` dispatcher, 6 new `enable_*` methods, all doc import paths corrected.
+
+    :material-calendar: June 2026
+
+    [:octicons-arrow-right-24: Release Notes](v1.2.3.md)
+
+-   :material-shield-bug:{ .lg .middle } **v1.2.2** — Security & Bug Fixes
+
+    ---
+
+    Critical CSRF `HttpOnly` fix (broke all AJAX apps), auth `skip_path` prefix bypass fix, rate limiter fixed-window reset bug.
+
+    :material-calendar: June 2026
+
+    [:octicons-arrow-right-24: Release Notes](v1.2.2.md)
+
+-   :material-bug-check:{ .lg .middle } **v1.2.1** — Critical Bug Fixes
+
+    ---
+
+    Server port never bound, `ProblemDetails` missing from Python export, `And`/`Or` guard `*args` style, `HttpOnly` removed from CSRF cookie.
+
+    :material-calendar: June 2026
+
+    [:octicons-arrow-right-24: Release Notes](v1.2.1.md)
+
+-   :material-database-sync:{ .lg .middle } **v1.2.0** — Redis Lua & AsyncClient
+
+    ---
+
+    Redis Lua scripting (`eval`, `evalsha`, `script_load`), Rust-native `AsyncClient` backed by `reqwest + Tokio` — GIL never held during HTTP I/O.
+
+    :material-calendar: June 2026
+
+    [:octicons-arrow-right-24: Release Notes](v1.2.0.md)
+
+-   :material-file-code:{ .lg .middle } **v1.1.0** — MiniJinja Templates
+
+    ---
+
+    Jinja2-compatible template engine via `minijinja` Rust crate. `app.enable_templates()`, `app.render()`, globals, auto HTML-escaping.
+
+    :material-calendar: June 2026
+
+    [:octicons-arrow-right-24: Release Notes](v1.1.0.md)
+
+-   :material-wrench:{ .lg .middle } **v1.0.1** — Cross-Platform & Compatibility Patch
+
+    ---
+
+    Windows multi-worker subprocess mode, ARM JSON fallback, async guard/cache/blueprint compatibility, export completeness.
 
     :material-calendar: February 2026
 
     [:octicons-arrow-right-24: Release Notes](v1.0.1.md)
 
--   :material-check-decagram:{ .lg .middle } **v1.0.0** -- Production Ready
+-   :material-check-decagram:{ .lg .middle } **v1.0.0** — Production Ready
 
     ---
 
@@ -77,7 +129,7 @@ timeline
 
     [:octicons-arrow-right-24: Release Notes](v1.0.0.md)
 
--   :material-star-shooting:{ .lg .middle } **v0.10.0** -- Advanced Patterns
+-   :material-star-shooting:{ .lg .middle } **v0.10.0** — Advanced Patterns
 
     ---
 
@@ -87,7 +139,7 @@ timeline
 
     [:octicons-arrow-right-24: Release Notes](v0.10.0.md)
 
--   :material-api:{ .lg .middle } **v0.9.0** -- API Protocols
+-   :material-api:{ .lg .middle } **v0.9.0** — API Protocols
 
     ---
 
@@ -97,7 +149,7 @@ timeline
 
     [:octicons-arrow-right-24: Release Notes](v0.9.0.md)
 
--   :material-database:{ .lg .middle } **v0.8.0** -- Data Layer
+-   :material-database:{ .lg .middle } **v0.8.0** — Data Layer
 
     ---
 
@@ -107,17 +159,17 @@ timeline
 
     [:octicons-arrow-right-24: Release Notes](v0.8.0.md)
 
--   :material-eye:{ .lg .middle } **v0.7.0** -- Enterprise Observability
+-   :material-eye:{ .lg .middle } **v0.7.0** — Enterprise Observability
 
     ---
 
-    OpenTelemetry distributed tracing, structured health check endpoints, and enterprise-grade features.
+    OpenTelemetry distributed tracing, structured health check endpoints, and GraphQL support.
 
     :material-calendar: January 2026
 
     [:octicons-arrow-right-24: Release Notes](v0.7.0.md)
 
--   :material-speedometer:{ .lg .middle } **v0.6.0** -- Smart Middleware
+-   :material-speedometer:{ .lg .middle } **v0.6.0** — Smart Middleware
 
     ---
 
@@ -127,7 +179,7 @@ timeline
 
     [:octicons-arrow-right-24: Release Notes](v0.6.0.md)
 
--   :material-shield-check:{ .lg .middle } **v0.5.0** -- Security & DI
+-   :material-shield-check:{ .lg .middle } **v0.5.0** — Security & DI
 
     ---
 
@@ -137,7 +189,7 @@ timeline
 
     [:octicons-arrow-right-24: Release Notes](v0.5.0.md)
 
--   :material-lock:{ .lg .middle } **v0.4.0** -- Auth & Sessions
+-   :material-lock:{ .lg .middle } **v0.4.0** — Auth & Sessions
 
     ---
 
@@ -147,7 +199,7 @@ timeline
 
     [:octicons-arrow-right-24: Release Notes](v0.4.0.md)
 
--   :material-access-point:{ .lg .middle } **v0.3.0** -- Real-time
+-   :material-access-point:{ .lg .middle } **v0.3.0** — Real-time
 
     ---
 
@@ -165,15 +217,15 @@ timeline
 
 | Version | Status | Support Until |
 |:--------|:-------|:--------------|
-| **1.0.x** | :material-check-circle:{ style="color: #4caf50" } **Active** | Current |
-| 0.10.x | :material-wrench:{ style="color: #ffab40" } Maintenance | August 2026 |
-| 0.9.x | :material-wrench:{ style="color: #ffab40" } Maintenance | August 2026 |
-| 0.8.x | :material-shield-alert:{ style="color: #ff9800" } Security Only | June 2026 |
-| < 0.8 | :material-close-circle:{ style="color: #f44336" } End of Life | -- |
+| **1.2.x** | :material-check-circle:{ style="color: #4caf50" } **Active** | Current |
+| 1.1.x | :material-wrench:{ style="color: #ffab40" } Maintenance | December 2026 |
+| 1.0.x | :material-wrench:{ style="color: #ffab40" } Maintenance | October 2026 |
+| 0.10.x | :material-shield-alert:{ style="color: #ff9800" } Security Only | August 2026 |
+| < 0.10 | :material-close-circle:{ style="color: #f44336" } End of Life | — |
 
 !!! info "Version policy"
 
-    Cello follows [Semantic Versioning](https://semver.org/). Starting with **v1.0.1**, the public API is stable -- no breaking changes until v2.0. **Maintenance** releases receive bug fixes. **Security Only** releases receive critical security patches only.
+    Cello follows [Semantic Versioning](https://semver.org/). Starting with **v1.0.0**, the public API is stable — no breaking changes until v2.0. **Maintenance** releases receive bug fixes. **Security Only** releases receive critical security patches only.
 
 ---
 
@@ -186,13 +238,13 @@ timeline
     pip install --upgrade cello-framework
 
     # Pin to a specific version
-    pip install cello-framework==1.0.1  # Latest patch
+    pip install cello-framework==1.2.3
     ```
 
 === "requirements.txt"
 
     ```text
-    cello-framework>=1.0.1,<2.0.0
+    cello-framework>=1.2.3,<2.0.0
     ```
 
 === "pyproject.toml"
@@ -200,7 +252,7 @@ timeline
     ```toml
     [project]
     dependencies = [
-        "cello-framework>=1.0.1,<2.0.0",
+        "cello-framework>=1.2.3,<2.0.0",
     ]
     ```
 
