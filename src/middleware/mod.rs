@@ -552,7 +552,7 @@ impl Middleware for LoggingMiddleware {
     }
 
     fn should_run(&self, path: &str) -> bool {
-        !self.skip_paths.iter().any(|p| path.starts_with(p))
+        !self.skip_paths.iter().any(|p| path_matches_skip(path, p))
     }
 }
 
@@ -748,5 +748,19 @@ mod tests {
         let names = chain.middleware_names();
         assert!(names.contains(&"test1".to_string()));
         assert!(names.contains(&"test2".to_string()));
+    }
+
+    #[test]
+    fn test_path_matches_skip() {
+        // Exact and sub-path matches succeed.
+        assert!(path_matches_skip("/health", "/health"));
+        assert!(path_matches_skip("/health/live", "/health"));
+        assert!(path_matches_skip("/api/v1/users", "/api"));
+
+        // Regression: a sibling prefix must NOT match (the raw `starts_with` bug that
+        // let `/healthz` and `/api-internal` bypass auth/skip rules).
+        assert!(!path_matches_skip("/healthz", "/health"));
+        assert!(!path_matches_skip("/api-internal", "/api"));
+        assert!(!path_matches_skip("/", "/health"));
     }
 }

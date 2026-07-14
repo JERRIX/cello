@@ -54,7 +54,7 @@ Example:
 """
 
 from .validation import wrap_handler_with_validation
-from .database import transactional, Database, Redis, Transaction
+from .database import transactional
 from .guards import (
     Guard,
     Role as RoleGuard,
@@ -120,6 +120,13 @@ from cello._cello import (
 # v0.8.0 - Data Layer features
 from cello._cello import (
     RedisConfig,
+)
+
+# v1.4.0 - Native async data layer (real Postgres pool + Redis client)
+from cello._cello import (
+    Database,
+    Transaction,
+    Redis,
 )
 
 # v0.9.0 - API Protocol features
@@ -296,7 +303,7 @@ __all__ = [
     "validate_rate_limit_config",
     "validate_tls_config",
 ]
-__version__ = "1.2.4"
+__version__ = "1.3.0"
 
 
 class Blueprint:
@@ -414,6 +421,25 @@ def _apply_guards(handler, guards):
         return guard_wrapper
 
 
+class _AppState:
+    """A plain attribute namespace hanging off ``app.state``.
+
+    A place to stash resources you create yourself (e.g. an external
+    ``asyncpg``/``redis.asyncio`` pool, an ``aiohttp`` session) in a startup
+    hook so they survive on Cello's persistent event loop across requests::
+
+        @app.on_event("startup")
+        async def startup():
+            app.state.http = SomeClient()
+    """
+
+    __slots__ = ("__dict__",)
+
+    def __repr__(self):
+        keys = ", ".join(sorted(self.__dict__)) or "empty"
+        return f"<App.state {keys}>"
+
+
 class App:
     """
     The main Cello application class.
@@ -437,7 +463,9 @@ class App:
         self._app = Cello()
         self._routes = []  # Track routes for OpenAPI generation
         self._template_engine: "MiniJinjaEngine | None" = None  # v1.1.0
-        self._redis = None  # Python Redis client; set by enable_redis()
+        self._redis = None  # Native Redis client; set by enable_redis()
+        self._database = None  # Native Postgres pool; set by enable_database()
+        self.state = _AppState()  # Scratch namespace for user-held resources
 
     def _register_route(self, method: str, path: str, func, tags: list = None, summary: str = None, description: str = None):
         """Internal: Register a route and track metadata for OpenAPI."""
@@ -521,7 +549,7 @@ class App:
     def options(self, path: str, guards: list = None):
         """Register an OPTIONS route."""
         def decorator(func):
-            wrapped = _apply_guards(func, guards)
+            wrapped = _apply_guards(wrap_handler_with_validation(self._make_redis_aware(func)), guards)
             self._app.options(path, wrapped)
             return wrapped
         return decorator
@@ -529,7 +557,7 @@ class App:
     def head(self, path: str, guards: list = None):
         """Register a HEAD route."""
         def decorator(func):
-            wrapped = _apply_guards(func, guards)
+            wrapped = _apply_guards(wrap_handler_with_validation(self._make_redis_aware(func)), guards)
             self._app.head(path, wrapped)
             return wrapped
         return decorator
@@ -567,7 +595,7 @@ class App:
             methods = ["GET"]
 
         def decorator(func):
-            wrapped = wrap_handler_with_validation(func)
+            wrapped = wrap_handler_with_validation(self._make_redis_aware(func))
             for method in methods:
                 method_upper = method.upper()
                 if method_upper == "GET":
@@ -581,9 +609,9 @@ class App:
                 elif method_upper == "PATCH":
                     self._app.patch(path, wrapped)
                 elif method_upper == "OPTIONS":
-                    self._app.options(path, func)
+                    self._app.options(path, wrapped)
                 elif method_upper == "HEAD":
-                    self._app.head(path, func)
+                    self._app.head(path, wrapped)
             return func
         return decorator
 
@@ -661,6 +689,33 @@ class App:
         """
         self._app.enable_circuit_breaker(failure_threshold, reset_timeout, half_open_target, failure_codes)
 
+    def set_limits(self, config: "LimitsConfig"):
+        """Configure request size limits.
+
+        Currently enforces ``max_body_size`` (bytes): the server rejects requests
+        whose body exceeds this size with ``413 Payload Too Large``, before the body
+        is buffered into memory. Set ``max_body_size=0`` for no limit. The default
+        cap is 100 MB.
+
+        Args:
+            config: LimitsConfig instance.
+        """
+        self._app.set_limits(config)
+        return self
+
+    def set_timeouts(self, config: "TimeoutConfig"):
+        """Configure server timeouts (all values in seconds; 0 disables a timeout).
+
+        Uses ``read_header_timeout`` (Slowloris guard for slow header delivery),
+        ``read_body_timeout`` (slow body delivery → ``408``), and ``handler_timeout``
+        (a handler exceeding the limit → ``504``). Timeouts are disabled by default.
+
+        Args:
+            config: TimeoutConfig instance.
+        """
+        self._app.set_timeouts(config)
+        return self
+
     def enable_jwt(self, config: "JwtConfig", skip_paths: list = None):
         """Enable JWT authentication middleware.
 
@@ -686,9 +741,18 @@ class App:
         """
         self._app.enable_security_headers(strict)
 
-    def enable_csrf(self):
-        """Enable CSRF protection middleware (double-submit cookie pattern)."""
-        self._app.enable_csrf()
+    def enable_csrf(self, cookie_name: str = None, header_name: str = None,
+                    allowed_origins: list = None):
+        """Enable CSRF protection middleware (double-submit cookie pattern).
+
+        Args:
+            cookie_name: Name of the CSRF cookie (default: ``"_csrf"``).
+            header_name: Request header carrying the token (default: ``"X-CSRF-Token"``).
+            allowed_origins: Optional explicit allow-list of full origins
+                (e.g. ``["https://app.example.com"]``). When empty, requests are
+                validated as same-origin against the ``Host`` header.
+        """
+        self._app.enable_csrf(cookie_name, header_name, allowed_origins)
 
     def enable_basic_auth(self, credentials: dict, realm: str = "Restricted"):
         """Enable HTTP Basic authentication middleware.
@@ -738,7 +802,11 @@ class App:
         elif isinstance(middleware, ApiKeyAuth):
             self.enable_api_key(middleware.keys, middleware.header)
         elif isinstance(middleware, CsrfConfig):
-            self.enable_csrf()
+            self.enable_csrf(
+                cookie_name=middleware.cookie_name,
+                header_name=middleware.header_name,
+                allowed_origins=getattr(middleware, "allowed_origins", None),
+            )
         else:
             # Try SessionConfig (from cello._cello)
             try:
@@ -1091,8 +1159,13 @@ class App:
             ))
         """
         if config is None:
-            config = DatabaseConfig("sqlite://cello.db")
+            raise ValueError(
+                "enable_database() requires a DatabaseConfig with a Postgres URL, e.g. "
+                'DatabaseConfig(url="postgresql://user:pass@localhost:5432/mydb", pool_size=10)'
+            )
         self._app.enable_database(config)
+        # Expose the live native pool as app.database / request.database.
+        self._database = self._app.database
 
     def enable_redis(self, config: "RedisConfig" = None):
         """
@@ -1117,26 +1190,51 @@ class App:
         """
         if config is None:
             config = RedisConfig()
-        self._redis = Redis(config)
         self._app.enable_redis(config)
+        # Expose the live native client as app.redis / request.redis.
+        self._redis = self._app.redis
+
+    @property
+    def database(self):
+        """The native Postgres pool (or None). Available after enable_database().
+
+        Use inside ``on_event("startup")`` to create tables or warm caches::
+
+            @app.on_event("startup")
+            async def startup():
+                await app.database.execute("CREATE TABLE IF NOT EXISTS ...")
+        """
+        return self._database
+
+    @property
+    def redis(self):
+        """The native Redis client (or None). Available after enable_redis()."""
+        return self._redis
 
     def _make_redis_aware(self, func):
-        """Wrap a handler so request._inject_redis() is called before dispatch."""
+        """Wrap a handler so the native Redis client and Database pool are
+        injected onto the request (``request.redis`` / ``request.database``)
+        before dispatch."""
         import inspect
         from functools import wraps
         app = self
+
+        def _inject(request):
+            if app._redis is not None:
+                request._inject_redis(app._redis)
+            if app._database is not None:
+                request._inject_database(app._database)
+
         if inspect.iscoroutinefunction(func):
             @wraps(func)
             async def async_wrapper(request, *args, **kwargs):
-                if app._redis is not None:
-                    request._inject_redis(app._redis)
+                _inject(request)
                 return await func(request, *args, **kwargs)
             return async_wrapper
         else:
             @wraps(func)
             def sync_wrapper(request, *args, **kwargs):
-                if app._redis is not None:
-                    request._inject_redis(app._redis)
+                _inject(request)
                 return func(request, *args, **kwargs)
             return sync_wrapper
 

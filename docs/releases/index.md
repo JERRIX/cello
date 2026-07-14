@@ -5,7 +5,7 @@ icon: material/tag-multiple
 tags:
   - Release Notes
   - Changelog
-  - v1.2.4
+  - v1.3.0
   - Migration
 ---
 
@@ -13,19 +13,21 @@ tags:
 
 ---
 
-## :material-new-box: Latest Release — v1.2.4
+## :material-new-box: Latest Release — v1.3.0
 
-!!! success "Cello v1.2.4 — Critical Fix: async def Handlers (June 2026)"
+!!! success "Cello v1.3.0 — Async Rework, Security Hardening & DoS Protection (July 2026)"
 
-    Fixes a critical regression introduced in v1.2.1 where all `async def` route handlers silently returned 500 errors due to `pyo3_asyncio` not being initialised after the server startup change.
+    A bug-fix and hardening release that also reworks how async handlers are driven.
 
     **Highlights:**
 
-    - :material-bug-check: **All `async def` handlers now work** — coroutines are driven via `tokio::task::spawn_blocking + asyncio.run()`
-    - :material-test-tube: **New test suite** — `tests/verify_async_client.py` covers all HTTP methods with a local echo server
-    - :material-arrow-up: **Drop-in upgrade** from v1.2.3 — no API changes
+    - :material-sync: **Persistent asyncio loop** — `async def` handlers run on one long-lived loop (loop-bound resources survive; GIL released during I/O), replacing the fresh-`asyncio.run()`-per-request model
+    - :material-shield-lock: **Security** — CSRF Origin bypass fixed, skip-path prefix bypass removed, CORS `Vary: Origin`, timing-safe BasicAuth, SSE injection blocked
+    - :material-database-lock: **DoS protection** — body size limits (`App.set_limits()`) and header/body/handler timeouts (`App.set_timeouts()`)
+    - :material-numeric: **Correctness** — large ints no longer corrupted, DELETE bodies read, Range/query-decode fixes
+    - :material-arrow-up: **Upgrade from v1.2.x** — additive API (`set_limits`/`set_timeouts`, `enable_csrf` args); async apps relying on a fresh loop per request should review the migration note
 
-    [:octicons-arrow-right-24: Full v1.2.4 Release Notes](v1.2.4.md){ .md-button .md-button--primary }
+    [:octicons-arrow-right-24: Full v1.3.0 Release Notes](v1.3.0.md){ .md-button .md-button--primary }
     [:octicons-arrow-right-24: Migration Guide](migration.md){ .md-button }
 
 ---
@@ -35,6 +37,7 @@ tags:
 ```mermaid
 timeline
     title Cello Framework Releases
+    2026-07 : v1.3.0 - Async Rework, Security Hardening & DoS Protection
     2026-06 : v1.2.4 - Critical Fix: async def Handlers
             : v1.2.3 - Full Middleware Python API & Docs Fixes
             : v1.2.2 - Security & Bug Fixes (CSRF, skip_path, rate limiter)
@@ -58,6 +61,16 @@ timeline
 ## :material-history: All Releases
 
 <div class="grid cards" markdown>
+
+-   :material-sync:{ .lg .middle } **v1.3.0** — Async Rework & Hardening
+
+    ---
+
+    Persistent asyncio loop, CSRF/skip-path/CORS/SSE security fixes, body-size limits & timeouts, integer/Range/query correctness.
+
+    :material-calendar: July 2026
+
+    [:octicons-arrow-right-24: Release Notes](v1.3.0.md)
 
 -   :material-bug-check:{ .lg .middle } **v1.2.4** — Critical Async Fix
 
@@ -248,13 +261,13 @@ timeline
     pip install --upgrade cello-framework
 
     # Pin to a specific version
-    pip install cello-framework==1.2.4
+    pip install cello-framework==1.3.0
     ```
 
 === "requirements.txt"
 
     ```text
-    cello-framework>=1.2.4,<2.0.0
+    cello-framework>=1.3.0,<2.0.0
     ```
 
 === "pyproject.toml"
@@ -262,7 +275,7 @@ timeline
     ```toml
     [project]
     dependencies = [
-        "cello-framework>=1.2.4,<2.0.0",
+        "cello-framework>=1.3.0,<2.0.0",
     ]
     ```
 

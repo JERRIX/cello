@@ -12,7 +12,7 @@ pub mod cluster;
 pub mod protocols;
 
 use bytes::Bytes;
-use http_body_util::{BodyExt, Full};
+use http_body_util::{BodyExt, Full, Limited};
 use hyper::server::conn::http1;
 use hyper::service::service_fn;
 use hyper::{body::Incoming, Request as HyperRequest, Response as HyperResponse, StatusCode};
@@ -64,6 +64,14 @@ pub struct ServerConfig {
     pub read_timeout: Option<Duration>,
     /// Write timeout
     pub write_timeout: Option<Duration>,
+    /// Maximum request body size in bytes (0 = unlimited)
+    pub max_body_size: usize,
+    /// Timeout for reading request headers (Slowloris guard); None = disabled
+    pub read_header_timeout: Option<Duration>,
+    /// Timeout for reading the full request body; None = disabled
+    pub read_body_timeout: Option<Duration>,
+    /// Timeout for a single handler to produce a response; None = disabled
+    pub handler_timeout: Option<Duration>,
     /// Graceful shutdown timeout
     pub shutdown_timeout: Duration,
     /// TLS configuration
@@ -89,6 +97,10 @@ impl ServerConfig {
             tcp_nodelay: true,
             read_timeout: Some(Duration::from_secs(30)),
             write_timeout: Some(Duration::from_secs(30)),
+            max_body_size: 100 * 1024 * 1024,
+            read_header_timeout: None,
+            read_body_timeout: None,
+            handler_timeout: None,
             shutdown_timeout: Duration::from_secs(30),
             tls: None,
             http2: None,
@@ -521,6 +533,13 @@ impl Server {
         let guards = self.guards.clone();
         let prometheus = self.prometheus.clone();
 
+        // Copy limit/timeout config out of self.config (all Copy) so each connection
+        // task can capture them cheaply.
+        let max_body_size = self.config.max_body_size;
+        let read_body_timeout = self.config.read_body_timeout;
+        let read_header_timeout = self.config.read_header_timeout;
+        let handler_timeout = self.config.handler_timeout;
+
         let mut shutdown_rx = shutdown.subscribe();
 
         // Listen for termination signals (SIGTERM on Unix, ctrl_c fallback on Windows)
@@ -598,6 +617,10 @@ impl Server {
                                 let conn_deps = dependency_container;
                                 let conn_guards = guards;
                                 let conn_prometheus = prometheus;
+                                // Copy limit/timeout config (all Copy) into the connection scope.
+                                let conn_max_body_size = max_body_size;
+                                let conn_read_body_timeout = read_body_timeout;
+                                let conn_handler_timeout = handler_timeout;
 
                                 let service = service_fn(move |req| {
                                     let router = conn_router.clone();
@@ -608,6 +631,9 @@ impl Server {
                                     let dependency_container = conn_deps.clone();
                                     let guards = conn_guards.clone();
                                     let prometheus = conn_prometheus.clone();
+                                    let req_max_body_size = conn_max_body_size;
+                                    let req_read_body_timeout = conn_read_body_timeout;
+                                    let req_handler_timeout = conn_handler_timeout;
 
                                     async move {
                                         shutdown.request_started();
@@ -622,6 +648,9 @@ impl Server {
                                             &dependency_container,
                                             &guards,
                                             &prometheus,
+                                            req_max_body_size,
+                                            req_read_body_timeout,
+                                            req_handler_timeout,
                                         )
                                         .await;
 
@@ -632,12 +661,15 @@ impl Server {
                                     }
                                 });
 
-                                // PERF: Enable keep-alive and pipelining for better throughput
-                                let serve_res: Result<(), hyper::Error> = http1::Builder::new()
-                                    .keep_alive(true)
-                                    .pipeline_flush(true)
-                                    .serve_connection(io, service)
-                                    .await;
+                                // PERF: Enable keep-alive and pipelining for better throughput.
+                                // header_read_timeout guards against Slowloris (slow header send).
+                                let mut builder = http1::Builder::new();
+                                builder.keep_alive(true).pipeline_flush(true);
+                                if let Some(t) = read_header_timeout {
+                                    builder.header_read_timeout(t);
+                                }
+                                let serve_res: Result<(), hyper::Error> =
+                                    builder.serve_connection(io, service).await;
                                 
                                 if let Err(err) = serve_res {
                                     // Only log if not a normal connection close
@@ -677,6 +709,9 @@ async fn handle_request(
     prometheus: &Arc<
         parking_lot::RwLock<Option<crate::middleware::prometheus::PrometheusMiddleware>>,
     >,
+    max_body_size: usize,
+    read_body_timeout: Option<Duration>,
+    handler_timeout: Option<Duration>,
 ) -> Result<HyperResponse<Full<Bytes>>, Infallible> {
     metrics.inc_requests();
 
@@ -693,6 +728,15 @@ async fn handle_request(
     let route_match = match route_match {
         Some(m) => m,
         None => {
+            // `/metrics` is not a registered route, so serve it here before 404.
+            {
+                let prom_guard = prometheus.read();
+                if let Some(ref p) = *prom_guard {
+                    if let Some(response) = p.try_serve(path) {
+                        return build_hyper_response(&response, metrics);
+                    }
+                }
+            }
             let response = Response::not_found(&format!("Not Found: {method_str} {path}"));
             return build_hyper_response(&response, metrics);
         }
@@ -705,25 +749,22 @@ async fn handle_request(
     let query: HashMap<String, String> = if query_string.is_empty() {
         HashMap::new()
     } else {
+        // application/x-www-form-urlencoded: '+' denotes a space (for BOTH keys and
+        // values) and the rest is percent-encoded. Previously only values had '+'
+        // decoded, so a key like `a+b` was left as `a+b` instead of `a b`.
+        let decode = |raw: &str| -> String {
+            urlencoding::decode(&raw.replace('+', " "))
+                .unwrap_or_default()
+                .into_owned()
+        };
         query_string
             .split('&')
             .filter(|s| !s.is_empty())
             .filter_map(|pair| {
                 let mut parts = pair.splitn(2, '=');
                 match (parts.next(), parts.next()) {
-                    (Some(key), Some(value)) => {
-                        let value_with_spaces = value.replace('+', " ");
-                        Some((
-                            urlencoding::decode(key).unwrap_or_default().to_string(),
-                            urlencoding::decode(&value_with_spaces)
-                                .unwrap_or_default()
-                                .to_string(),
-                        ))
-                    }
-                    (Some(key), None) => Some((
-                        urlencoding::decode(key).unwrap_or_default().to_string(),
-                        String::new(),
-                    )),
+                    (Some(key), Some(value)) => Some((decode(key), decode(value))),
+                    (Some(key), None) => Some((decode(key), String::new())),
                     _ => None,
                 }
             })
@@ -737,28 +778,68 @@ async fn handle_request(
         headers.insert(k.as_str().to_owned(), v.to_str().unwrap_or("").to_owned());
     }
 
-    // PERF: Only collect body for methods that carry payloads
+    // Reject oversized bodies up-front using the declared Content-Length. This avoids
+    // buffering anything for an attacker who advertises a huge payload.
+    if max_body_size > 0 {
+        if let Some(len) = headers
+            .get("content-length")
+            .and_then(|v| v.parse::<usize>().ok())
+        {
+            if len > max_body_size {
+                metrics.inc_errors();
+                let response =
+                    Response::error(413, "Payload Too Large: request body exceeds limit");
+                return build_hyper_response(&response, metrics);
+            }
+        }
+    }
+
+    // PERF: Only collect body for methods that carry payloads.
+    // GET/HEAD bodies have no defined semantics and are dropped, but DELETE and
+    // OPTIONS may legitimately carry a body (RFC 7231), so those are collected below.
     let body_bytes: Vec<u8> = match method_str {
-        "GET" | "HEAD" | "OPTIONS" | "DELETE" => {
+        "GET" | "HEAD" => {
             // Fast path: drop body without draining - hyper handles cleanup
             drop(req);
             Vec::new()
         }
-        _ => match req.collect().await {
-            Ok(collected) => {
-                let bytes = collected.to_bytes();
-                if bytes.is_empty() {
-                    Vec::new()
-                } else {
-                    metrics.add_bytes_received(bytes.len() as u64);
-                    bytes.to_vec()
+        _ => {
+            // Cap the streamed body with `Limited` so a chunked request (no
+            // Content-Length) also cannot exhaust memory. `max_body_size == 0`
+            // means unlimited.
+            let limit = if max_body_size == 0 { usize::MAX } else { max_body_size };
+            let collect_fut = Limited::new(req.into_body(), limit).collect();
+            let collected = match read_body_timeout {
+                Some(t) => match tokio::time::timeout(t, collect_fut).await {
+                    Ok(inner) => inner,
+                    Err(_) => {
+                        metrics.inc_errors();
+                        let response = Response::error(408, "Request Timeout: body read timed out");
+                        return build_hyper_response(&response, metrics);
+                    }
+                },
+                None => collect_fut.await,
+            };
+            match collected {
+                Ok(collected) => {
+                    let bytes = collected.to_bytes();
+                    if bytes.is_empty() {
+                        Vec::new()
+                    } else {
+                        metrics.add_bytes_received(bytes.len() as u64);
+                        bytes.to_vec()
+                    }
+                }
+                Err(_) => {
+                    // Limit exceeded or a body stream error: reject rather than
+                    // silently truncating to an empty body.
+                    metrics.inc_errors();
+                    let response =
+                        Response::error(413, "Payload Too Large: request body exceeds limit");
+                    return build_hyper_response(&response, metrics);
                 }
             }
-            Err(_) => {
-                metrics.inc_errors();
-                Vec::new()
-            }
-        },
+        }
     };
 
     // Create request object with owned data
@@ -844,9 +925,18 @@ async fn handle_request(
 
     // Pass the full request (with body) to the handler by value - no clone needed
     let handler_id = route_match.handler_id;
-    let result = handlers
-        .invoke_async(handler_id, request, dependency_container.clone())
-        .await;
+    let invoke_fut = handlers.invoke_async(handler_id, request, dependency_container.clone());
+    let result = match handler_timeout {
+        Some(t) => match tokio::time::timeout(t, invoke_fut).await {
+            Ok(r) => r,
+            Err(_) => {
+                metrics.inc_errors();
+                let response = Response::error(504, "Gateway Timeout: handler exceeded time limit");
+                return build_hyper_response(&response, metrics);
+            }
+        },
+        None => invoke_fut.await,
+    };
 
     // PERF: Ultra-fast path for the most common case:
     // Handler returned a dict (JsonBytes), no after-middleware, no Prometheus.

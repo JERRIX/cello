@@ -17,7 +17,7 @@ use std::time::{Duration, SystemTime};
 use std::future::Future;
 use std::pin::Pin;
 
-use super::{AsyncMiddleware, MiddlewareAction, MiddlewareResult};
+use super::{path_matches_skip, AsyncMiddleware, MiddlewareAction, MiddlewareResult};
 use crate::request::Request;
 use crate::response::Response;
 
@@ -475,7 +475,7 @@ impl CacheMiddleware {
             .config
             .exclude_paths
             .iter()
-            .any(|p| request.path.starts_with(p))
+            .any(|p| path_matches_skip(&request.path, p))
         {
             return false;
         }
@@ -486,7 +486,7 @@ impl CacheMiddleware {
                 .config
                 .include_paths
                 .iter()
-                .any(|p| request.path.starts_with(p));
+                .any(|p| path_matches_skip(&request.path, p));
         }
 
         true

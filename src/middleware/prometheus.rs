@@ -18,7 +18,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Instant;
 
-use super::{Middleware, MiddlewareAction, MiddlewareResult};
+use super::{path_matches_skip, Middleware, MiddlewareAction, MiddlewareResult};
 use crate::request::Request;
 use crate::response::Response;
 
@@ -272,7 +272,7 @@ impl PrometheusMiddleware {
         self.config
             .exclude_paths
             .iter()
-            .any(|p| path.starts_with(p))
+            .any(|p| path_matches_skip(path, p))
     }
 
     /// Get normalized path for label (to prevent cardinality explosion).
@@ -338,6 +338,23 @@ impl PrometheusMiddleware {
                 response.set_body(format!("Error encoding metrics: {e}").into_bytes());
                 response
             }
+        }
+    }
+
+    /// The configured metrics endpoint path (e.g. `/metrics`).
+    pub fn endpoint(&self) -> &str {
+        &self.config.endpoint
+    }
+
+    /// If `path` is the configured metrics endpoint, render the metrics response.
+    ///
+    /// The metrics endpoint is not a registered route, so the server calls this
+    /// on a routing miss (before returning 404) to serve `/metrics`.
+    pub fn try_serve(&self, path: &str) -> Option<Response> {
+        if path == self.config.endpoint {
+            Some(self.serve_metrics())
+        } else {
+            None
         }
     }
 }

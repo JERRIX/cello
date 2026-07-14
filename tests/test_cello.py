@@ -1042,7 +1042,7 @@ def test_version():
     """Test that version is 1.2.0."""
     import cello
 
-    assert cello.__version__ == "1.2.4"
+    assert cello.__version__ == "1.3.0"
 
 
 def test_all_exports():
@@ -1228,13 +1228,14 @@ def test_enable_openapi_default_version():
 
 
 def test_import_v080_data_layer():
-    """Test that v0.8.0 data layer features can be imported."""
-    from cello import DatabaseConfig, RedisConfig
-    from cello.database import transactional, Database, Redis, Transaction
+    """Data layer features import (native Database/Redis/Transaction since v1.4.0)."""
+    from cello import DatabaseConfig, RedisConfig, Database, Redis, Transaction
+    from cello.database import transactional
 
     assert DatabaseConfig is not None
     assert RedisConfig is not None
     assert transactional is not None
+    # These are now the native Rust-backed classes, not the old Python stubs.
     assert Database is not None
     assert Redis is not None
     assert Transaction is not None
@@ -1358,12 +1359,12 @@ def test_enable_database():
 
 
 def test_enable_database_default():
-    """Test enabling database with default config."""
+    """enable_database() now requires a Postgres URL (no meaningless sqlite default)."""
     from cello import App
 
     app = App()
-    result = app.enable_database()
-    assert result is None
+    with pytest.raises(ValueError):
+        app.enable_database()
 
 
 def test_enable_redis():
@@ -1393,348 +1394,10 @@ def test_enable_redis_default():
 # =============================================================================
 
 
-def test_database_class_init():
-    """Test Database class initialization."""
-    from cello.database import Database
-
-    db = Database()
-    assert db._config is None
-    assert db._pool is None
-
-
-def test_database_class_with_config():
-    """Test Database class initialization with config."""
-    from cello import DatabaseConfig
-    from cello.database import Database
-
-    config = DatabaseConfig("postgresql://localhost/test")
-    db = Database(config)
-    assert db._config is config
-
-
-@pytest.mark.asyncio
-async def test_database_connect():
-    """Test Database.connect class method."""
-    from cello import DatabaseConfig
-    from cello.database import Database
-
-    config = DatabaseConfig("postgresql://localhost/test")
-    db = await Database.connect(config)
-    assert db is not None
-    assert db._pool is not None
-
-
-@pytest.mark.asyncio
-async def test_database_fetch_all():
-    """Test Database.fetch_all returns empty list (mock)."""
-    from cello import DatabaseConfig
-    from cello.database import Database
-
-    config = DatabaseConfig("postgresql://localhost/test")
-    db = await Database.connect(config)
-    rows = await db.fetch_all("SELECT * FROM users")
-    assert isinstance(rows, list)
-    assert len(rows) == 0
-
-
-@pytest.mark.asyncio
-async def test_database_fetch_one():
-    """Test Database.fetch_one returns None (mock)."""
-    from cello import DatabaseConfig
-    from cello.database import Database
-
-    config = DatabaseConfig("postgresql://localhost/test")
-    db = await Database.connect(config)
-    row = await db.fetch_one("SELECT * FROM users WHERE id = $1", 1)
-    assert row is None
-
-
-@pytest.mark.asyncio
-async def test_database_execute():
-    """Test Database.execute returns 0 (mock)."""
-    from cello import DatabaseConfig
-    from cello.database import Database
-
-    config = DatabaseConfig("postgresql://localhost/test")
-    db = await Database.connect(config)
-    count = await db.execute("INSERT INTO users (name) VALUES ($1)", "Alice")
-    assert count == 0
-
-
-@pytest.mark.asyncio
-async def test_database_begin_transaction():
-    """Test Database.begin returns a Transaction."""
-    from cello import DatabaseConfig
-    from cello.database import Database, Transaction
-
-    config = DatabaseConfig("postgresql://localhost/test")
-    db = await Database.connect(config)
-    tx = await db.begin()
-    assert isinstance(tx, Transaction)
-
-
-@pytest.mark.asyncio
-async def test_database_close():
-    """Test Database.close resets pool."""
-    from cello import DatabaseConfig
-    from cello.database import Database
-
-    config = DatabaseConfig("postgresql://localhost/test")
-    db = await Database.connect(config)
-    assert db._pool is not None
-    await db.close()
-    assert db._pool is None
-
-
-# =============================================================================
-# v0.8.0 Transaction Tests
-# =============================================================================
-
-
-@pytest.mark.asyncio
-async def test_transaction_commit():
-    """Test Transaction commit."""
-    from cello import DatabaseConfig
-    from cello.database import Database
-
-    db = await Database.connect(DatabaseConfig("sqlite://test.db"))
-    tx = await db.begin()
-    assert tx._committed is False
-    await tx.commit()
-    assert tx._committed is True
-
-
-@pytest.mark.asyncio
-async def test_transaction_rollback():
-    """Test Transaction rollback."""
-    from cello import DatabaseConfig
-    from cello.database import Database
-
-    db = await Database.connect(DatabaseConfig("sqlite://test.db"))
-    tx = await db.begin()
-    assert tx._rolled_back is False
-    await tx.rollback()
-    assert tx._rolled_back is True
-
-
-@pytest.mark.asyncio
-async def test_transaction_context_manager_commit():
-    """Test Transaction as async context manager auto-commits."""
-    from cello import DatabaseConfig
-    from cello.database import Database
-
-    db = await Database.connect(DatabaseConfig("sqlite://test.db"))
-    tx = await db.begin()
-    async with tx:
-        await tx.execute("INSERT INTO users (name) VALUES ($1)", "Bob")
-    # Should auto-commit on clean exit
-    assert tx._committed is True
-    assert tx._rolled_back is False
-
-
-@pytest.mark.asyncio
-async def test_transaction_context_manager_rollback():
-    """Test Transaction as async context manager auto-rollbacks on exception."""
-    from cello import DatabaseConfig
-    from cello.database import Database
-
-    db = await Database.connect(DatabaseConfig("sqlite://test.db"))
-    tx = await db.begin()
-
-    with pytest.raises(ValueError):
-        async with tx:
-            await tx.execute("INSERT INTO users (name) VALUES ($1)", "Bob")
-            raise ValueError("Test error")
-
-    # Should auto-rollback on exception
-    assert tx._rolled_back is True
-    assert tx._committed is False
-
-
-@pytest.mark.asyncio
-async def test_transaction_execute():
-    """Test executing queries within a transaction."""
-    from cello import DatabaseConfig
-    from cello.database import Database
-
-    db = await Database.connect(DatabaseConfig("sqlite://test.db"))
-    tx = await db.begin()
-    count = await tx.execute("UPDATE accounts SET balance = 100 WHERE id = $1", 1)
-    assert count == 0  # Mock returns 0
-
-
-@pytest.mark.asyncio
-async def test_transaction_fetch_all():
-    """Test fetching rows within a transaction."""
-    from cello import DatabaseConfig
-    from cello.database import Database
-
-    db = await Database.connect(DatabaseConfig("sqlite://test.db"))
-    tx = await db.begin()
-    rows = await tx.fetch_all("SELECT * FROM accounts")
-    assert isinstance(rows, list)
-
-
-@pytest.mark.asyncio
-async def test_transaction_fetch_one():
-    """Test fetching a single row within a transaction."""
-    from cello import DatabaseConfig
-    from cello.database import Database
-
-    db = await Database.connect(DatabaseConfig("sqlite://test.db"))
-    tx = await db.begin()
-    row = await tx.fetch_one("SELECT * FROM accounts WHERE id = $1", 1)
-    assert row is None  # Mock returns None
-
-
-# =============================================================================
-# v0.8.0 Redis Python API Tests
-# =============================================================================
-
-
-def test_redis_class_init():
-    """Test Redis class initialization."""
-    from cello.database import Redis
-
-    redis = Redis()
-    assert redis._config is None
-    assert redis._client is None
-
-
-@pytest.mark.asyncio
-async def test_redis_connect():
-    """Test Redis.connect class method."""
-    from cello import RedisConfig
-    from cello.database import Redis
-
-    config = RedisConfig(url="redis://localhost:6379")
-    redis = await Redis.connect(config)
-    assert redis is not None
-    assert redis._client is not None
-
-
-@pytest.mark.asyncio
-async def test_redis_get_set():
-    """Test Redis get/set operations."""
-    from cello import RedisConfig
-    from cello.database import Redis
-
-    redis = await Redis.connect(RedisConfig())
-    result = await redis.set("key", "value")
-    assert result is True
-
-    value = await redis.get("key")
-    # Mock returns None (no actual Redis)
-    assert value is None
-
-
-@pytest.mark.asyncio
-async def test_redis_delete():
-    """Test Redis delete operation."""
-    from cello import RedisConfig
-    from cello.database import Redis
-
-    redis = await Redis.connect(RedisConfig())
-    result = await redis.delete("key")
-    assert result is True
-
-
-@pytest.mark.asyncio
-async def test_redis_exists():
-    """Test Redis exists operation."""
-    from cello import RedisConfig
-    from cello.database import Redis
-
-    redis = await Redis.connect(RedisConfig())
-    result = await redis.exists("key")
-    assert result is False  # Mock returns False
-
-
-@pytest.mark.asyncio
-async def test_redis_incr_decr():
-    """Test Redis increment and decrement."""
-    from cello import RedisConfig
-    from cello.database import Redis
-
-    redis = await Redis.connect(RedisConfig())
-    incr_val = await redis.incr("counter")
-    assert isinstance(incr_val, int)
-
-    decr_val = await redis.decr("counter")
-    assert isinstance(decr_val, int)
-
-
-@pytest.mark.asyncio
-async def test_redis_expire():
-    """Test Redis expire (TTL) operation."""
-    from cello import RedisConfig
-    from cello.database import Redis
-
-    redis = await Redis.connect(RedisConfig())
-    result = await redis.expire("key", 3600)
-    assert result is True
-
-
-@pytest.mark.asyncio
-async def test_redis_hash_operations():
-    """Test Redis hash operations (hset, hget, hgetall)."""
-    from cello import RedisConfig
-    from cello.database import Redis
-
-    redis = await Redis.connect(RedisConfig())
-
-    result = await redis.hset("user:1", "name", "Alice")
-    assert result is True
-
-    value = await redis.hget("user:1", "name")
-    assert value is None  # Mock
-
-    all_fields = await redis.hgetall("user:1")
-    assert isinstance(all_fields, dict)
-
-
-@pytest.mark.asyncio
-async def test_redis_list_operations():
-    """Test Redis list operations (lpush, rpush, lpop, lrange)."""
-    from cello import RedisConfig
-    from cello.database import Redis
-
-    redis = await Redis.connect(RedisConfig())
-
-    lpush_count = await redis.lpush("queue", "task1", "task2")
-    assert isinstance(lpush_count, int)
-
-    rpush_count = await redis.rpush("queue", "task3")
-    assert isinstance(rpush_count, int)
-
-    item = await redis.lpop("queue")
-    assert item is None  # Mock
-
-    items = await redis.lrange("queue", 0, -1)
-    assert isinstance(items, list)
-
-
-@pytest.mark.asyncio
-async def test_redis_publish():
-    """Test Redis publish operation."""
-    from cello import RedisConfig
-    from cello.database import Redis
-
-    redis = await Redis.connect(RedisConfig())
-    count = await redis.publish("events", '{"type": "update"}')
-    assert isinstance(count, int)
-
-
-@pytest.mark.asyncio
-async def test_redis_close():
-    """Test Redis close resets client."""
-    from cello import RedisConfig
-    from cello.database import Redis
-
-    redis = await Redis.connect(RedisConfig())
-    assert redis._client is not None
-    await redis.close()
-    assert redis._client is None
+# NOTE: The former mock-based Database/Transaction/Redis unit tests were removed
+# in v1.4.0 when the data layer became real (native deadpool-postgres + redis
+# crate). Live integration coverage now lives in tests/test_native_db.py
+# (auto-skipped when Postgres/Redis are unreachable).
 
 
 # =============================================================================
@@ -1743,74 +1406,50 @@ async def test_redis_close():
 
 
 def test_transactional_decorator_exists():
-    """Test that transactional decorator is importable."""
+    """Test that transactional decorator is importable and callable."""
     from cello.database import transactional
-    import inspect
 
     assert callable(transactional)
 
 
-def test_transactional_wraps_async_function():
-    """Test that @transactional wraps an async function correctly."""
+def test_transactional_requires_async():
+    """@transactional rejects sync handlers (native transactions are async)."""
     from cello.database import transactional
+
+    with pytest.raises(TypeError):
+        @transactional
+        def sync_handler(request):
+            return {}
+
+
+def test_transactional_wraps_async_function():
+    """@transactional returns a coroutine function."""
     import asyncio
+    from cello.database import transactional
 
     @transactional
-    async def my_handler(request):
+    async def my_handler(request, tx=None):
         return {"success": True}
 
-    # Should return a coroutine function (wrapper)
     assert asyncio.iscoroutinefunction(my_handler)
 
 
-@pytest.mark.asyncio
-async def test_transactional_calls_function_without_db():
-    """Test @transactional executes handler when no DB is available."""
+def test_transactional_requires_database():
+    """@transactional raises when the request has no database configured."""
+    import asyncio
     from cello.database import transactional
 
     @transactional
-    async def my_handler(request):
-        return {"success": True}
+    async def my_handler(request, tx=None):
+        return {"ok": True}
 
-    # Create a simple mock request
     class MockRequest:
-        pass
+        @property
+        def database(self):
+            raise AttributeError("no database")
 
-    result = await my_handler(MockRequest())
-    assert result == {"success": True}
-
-
-@pytest.mark.asyncio
-async def test_transactional_commits_on_success():
-    """Test @transactional commits transaction on success."""
-    from cello.database import transactional, Database, Transaction
-    from cello import DatabaseConfig
-
-    db = await Database.connect(DatabaseConfig("sqlite://test.db"))
-
-    @transactional
-    async def my_handler(request, db=None, **kwargs):
-        return {"success": True}
-
-    # Pass db as kwarg
-    result = await my_handler(None, db=db)
-    assert result == {"success": True}
-
-
-@pytest.mark.asyncio
-async def test_transactional_rollbacks_on_error():
-    """Test @transactional rollbacks transaction on exception."""
-    from cello.database import transactional, Database
-    from cello import DatabaseConfig
-
-    db = await Database.connect(DatabaseConfig("sqlite://test.db"))
-
-    @transactional
-    async def failing_handler(request, db=None, **kwargs):
-        raise ValueError("Something went wrong")
-
-    with pytest.raises(ValueError, match="Something went wrong"):
-        await failing_handler(None, db=db)
+    with pytest.raises(RuntimeError):
+        asyncio.new_event_loop().run_until_complete(my_handler(MockRequest()))
 
 
 # =============================================================================
@@ -2156,11 +1795,12 @@ def test_app_with_database_and_transactional_route():
     from cello.database import transactional
 
     app = App()
-    app.enable_database(DatabaseConfig("sqlite://test.db"))
+    # Pool construction is lazy (no connection opened here), so this needs no server.
+    app.enable_database(DatabaseConfig("postgresql://localhost:5432/test"))
 
     @app.post("/transfer")
     @transactional
-    async def transfer(request):
+    async def transfer(request, tx=None):
         return {"success": True}
 
     # Verify the transactional-wrapped handler is callable
@@ -2178,7 +1818,8 @@ def test_v080_all_exports():
         # v0.8.0
         RedisConfig,
     )
-    from cello.database import transactional, Database, Redis, Transaction
+    from cello.database import transactional
+    from cello import Database, Redis, Transaction
 
     assert all([
         App, Blueprint, Request, Response,
@@ -2203,7 +1844,7 @@ def test_version_v090():
     """Test that version is 1.2.0 (updated from 0.9.0)."""
     import cello
 
-    assert cello.__version__ == "1.2.4"
+    assert cello.__version__ == "1.3.0"
 
 
 def test_v090_exports_in_all():
@@ -2239,7 +1880,8 @@ def test_v090_all_exports():
         # v0.9.0
         GrpcConfig, KafkaConfig, RabbitMQConfig, SqsConfig,
     )
-    from cello.database import transactional, Database, Redis, Transaction
+    from cello.database import transactional
+    from cello import Database, Redis, Transaction
     from cello.graphql import Query, Mutation, Subscription, Field, DataLoader, GraphQL, Schema
     from cello.grpc import (
         GrpcService, grpc_method, GrpcRequest, GrpcResponse,
@@ -3989,7 +3631,7 @@ def test_version_v0100():
     """Test that version is 1.2.0."""
     import cello
 
-    assert cello.__version__ == "1.2.4"
+    assert cello.__version__ == "1.3.0"
 
 
 def test_v0100_exports_in_all():

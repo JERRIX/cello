@@ -113,10 +113,14 @@ class CsrfConfig:
         cookie_name: str = "_csrf",
         header_name: str = "X-CSRF-Token",
         safe_methods: Optional[List[str]] = None,
+        allowed_origins: Optional[List[str]] = None,
     ) -> None:
         self.cookie_name = cookie_name
         self.header_name = header_name
         self.safe_methods = safe_methods or ["GET", "HEAD", "OPTIONS", "TRACE"]
+        # Explicit full-origin allow-list for cross-origin CSRF validation. When
+        # empty, requests are validated as same-origin against the Host header.
+        self.allowed_origins = allowed_origins or []
 
 
 class AdaptiveRateLimitConfig:

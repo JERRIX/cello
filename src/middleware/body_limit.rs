@@ -7,7 +7,7 @@
 
 use std::collections::HashMap;
 
-use super::{Middleware, MiddlewareAction, MiddlewareError, MiddlewareResult};
+use super::{path_matches_skip, Middleware, MiddlewareAction, MiddlewareError, MiddlewareResult};
 use crate::request::Request;
 
 // ============================================================================
@@ -160,7 +160,7 @@ impl BodyLimitConfig {
     pub fn get_limit(&self, path: &str, content_type: Option<&str>) -> usize {
         // Check route-specific limits first
         for (pattern, limit) in &self.route_limits {
-            if path.starts_with(pattern) || path == pattern {
+            if path_matches_skip(path, pattern) {
                 return *limit;
             }
         }

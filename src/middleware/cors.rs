@@ -404,8 +404,16 @@ impl CorsMiddleware {
             if self.config.credentials && allowed_origin == "*" {
                 // Reflect the actual origin instead of wildcard when credentials are enabled
                 response.set_header("Access-Control-Allow-Origin", &origin);
+                // The response now depends on the request Origin; advertise that to
+                // caches to prevent a response for one origin being served to another.
+                response.set_header("Vary", "Origin");
             } else {
                 response.set_header("Access-Control-Allow-Origin", &allowed_origin);
+                // A non-wildcard allow-origin is also origin-dependent unless it is a
+                // literal "*"; mark it Vary: Origin so shared caches key on Origin.
+                if allowed_origin != "*" {
+                    response.set_header("Vary", "Origin");
+                }
             }
         }
 

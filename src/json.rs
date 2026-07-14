@@ -69,9 +69,14 @@ pub fn python_to_json(py: Python<'_>, obj: &PyAny) -> Result<serde_json::Value, 
         return Ok(serde_json::Value::Bool(b));
     }
 
-    // Handle int
+    // Handle int. Try i64 first, then u64 for large unsigned values (e.g. 64-bit IDs
+    // and values in (i64::MAX, u64::MAX]) so they are not silently downgraded to f64
+    // and corrupted. Integers beyond u64 still fall through to the float path.
     if let Ok(i) = obj.extract::<i64>() {
         return Ok(serde_json::Value::Number(i.into()));
+    }
+    if let Ok(u) = obj.extract::<u64>() {
+        return Ok(serde_json::Value::Number(u.into()));
     }
 
     // Handle float
@@ -208,9 +213,15 @@ fn write_json_value(py: Python<'_>, obj: &PyAny, buf: &mut Vec<u8>) -> Result<()
         return Ok(());
     }
 
-    // Handle int
+    // Handle int. Try i64, then u64 for large unsigned values, so 64-bit IDs and
+    // values in (i64::MAX, u64::MAX] are written exactly instead of being coerced to
+    // an imprecise float. Integers beyond u64 still fall through to the float path.
     if let Ok(i) = obj.extract::<i64>() {
         write!(buf, "{i}").map_err(|e| e.to_string())?;
+        return Ok(());
+    }
+    if let Ok(u) = obj.extract::<u64>() {
+        write!(buf, "{u}").map_err(|e| e.to_string())?;
         return Ok(());
     }
 

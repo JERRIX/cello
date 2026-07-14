@@ -62,6 +62,10 @@ pub struct Request {
     /// Python-level Redis client injected when app.enable_redis() is configured.
     /// Wrapped in Arc so Clone stays GIL-free (atomic refcount only).
     pub redis_client: Option<Arc<PyObject>>,
+
+    /// Python-level Database pool injected when app.enable_database() is configured.
+    /// Wrapped in Arc so Clone stays GIL-free (atomic refcount only).
+    pub database_client: Option<Arc<PyObject>>,
 }
 
 /// Internal cache for lazy parsing results.
@@ -101,6 +105,7 @@ impl Request {
             context: HashMap::new(),
             lazy_cache: LazyCache::default(),
             redis_client: None,
+            database_client: None,
         }
     }
 
@@ -383,6 +388,30 @@ impl Request {
     pub fn _inject_redis(&mut self, client: PyObject) {
         self.redis_client = Some(Arc::new(client));
     }
+
+    /// Access the Database pool configured via app.enable_database().
+    #[getter]
+    pub fn database(&self, py: Python<'_>) -> PyResult<PyObject> {
+        self.database_client
+            .as_ref()
+            .map(|arc| arc.clone_ref(py))
+            .ok_or_else(|| {
+                pyo3::exceptions::PyAttributeError::new_err(
+                    "Database not configured. Call app.enable_database() before using request.database.",
+                )
+            })
+    }
+
+    /// Alias for `database` (asyncpg users reach for `request.db`).
+    #[getter]
+    pub fn db(&self, py: Python<'_>) -> PyResult<PyObject> {
+        self.database(py)
+    }
+
+    /// Inject the Database pool into this request (called by the Python App wrapper).
+    pub fn _inject_database(&mut self, client: PyObject) {
+        self.database_client = Some(Arc::new(client));
+    }
 }
 
 impl Request {
@@ -399,6 +428,7 @@ impl Request {
             context: HashMap::new(),
             lazy_cache: LazyCache::default(),
             redis_client: None,
+            database_client: None,
         }
     }
 
@@ -425,6 +455,7 @@ impl Request {
             context: HashMap::new(),
             lazy_cache: LazyCache::default(),
             redis_client: None,
+            database_client: None,
         }
     }
 
@@ -444,6 +475,7 @@ impl Request {
             context: self.context.clone(),
             lazy_cache: LazyCache::default(),
             redis_client: self.redis_client.clone(),
+            database_client: self.database_client.clone(),
         }
     }
 

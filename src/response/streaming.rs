@@ -412,15 +412,18 @@ impl FileBody {
 // ============================================================================
 
 /// Format data for Server-Sent Events.
+///
+/// SECURITY: `event` and `id` are single-line fields; CR/LF are stripped so a
+/// caller-supplied value cannot inject extra SSE directives into the stream.
 pub fn sse_event(event: Option<&str>, data: &str, id: Option<&str>) -> String {
     let mut output = String::new();
 
     if let Some(event_name) = event {
-        output.push_str(&format!("event: {event_name}\n"));
+        output.push_str(&format!("event: {}\n", event_name.replace(['\r', '\n'], "")));
     }
 
     if let Some(event_id) = id {
-        output.push_str(&format!("id: {event_id}\n"));
+        output.push_str(&format!("id: {}\n", event_id.replace(['\r', '\n'], "")));
     }
 
     // Data can be multi-line

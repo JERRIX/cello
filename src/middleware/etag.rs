@@ -9,7 +9,7 @@
 use sha2::{Digest, Sha256};
 use std::collections::HashSet;
 
-use super::{Middleware, MiddlewareAction, MiddlewareResult};
+use super::{path_matches_skip, Middleware, MiddlewareAction, MiddlewareResult};
 use crate::request::Request;
 use crate::response::Response;
 
@@ -242,7 +242,7 @@ impl EtagMiddleware {
 
         // Check skip paths
         for path in &self.config.skip_paths {
-            if request.path.starts_with(path) {
+            if path_matches_skip(&request.path, path) {
                 return false;
             }
         }

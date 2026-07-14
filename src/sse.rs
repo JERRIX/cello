@@ -6,6 +6,13 @@ use bytes::Bytes;
 use futures_util::stream::{self, Stream};
 use pyo3::prelude::*;
 
+/// Remove CR and LF characters from a single-line SSE field value to prevent
+/// event/stream injection via attacker-controlled `id`/`event` fields.
+#[inline]
+fn strip_newlines(value: &str) -> String {
+    value.replace(['\r', '\n'], "")
+}
+
 /// SSE Event structure.
 #[pyclass]
 #[derive(Clone, Debug)]
@@ -69,12 +76,15 @@ impl SseEvent {
     pub fn to_sse_string(&self) -> String {
         let mut result = String::new();
 
+        // SECURITY: `id` and `event` are single-line SSE fields. Strip CR/LF so an
+        // attacker-controlled value cannot inject additional SSE directives/events
+        // (e.g. an `id` containing "\ndata: ...") into the stream.
         if let Some(ref id) = self.id {
-            result.push_str(&format!("id: {id}\n"));
+            result.push_str(&format!("id: {}\n", strip_newlines(id)));
         }
 
         if let Some(ref event) = self.event {
-            result.push_str(&format!("event: {event}\n"));
+            result.push_str(&format!("event: {}\n", strip_newlines(event)));
         }
 
         if let Some(retry) = self.retry {
@@ -227,5 +237,28 @@ mod tests {
 
         assert_eq!(stream.len(), 2);
         assert!(!stream.is_empty());
+    }
+
+    #[test]
+    fn test_sse_field_injection_is_stripped() {
+        // Regression: an attacker-controlled `id`/`event` containing newlines must
+        // not be able to inject additional SSE directives into the stream.
+        let event = SseEvent::new("payload", Some("evt\ndata: injected"), Some("1\nevent: x"), None);
+        let sse_str = event.to_sse_string();
+        assert!(sse_str.contains("id: 1event: x\n"));
+        assert!(sse_str.contains("event: evtdata: injected\n"));
+        // The injected "data:" is now part of the single-line event field, so no
+        // extra data line was created: exactly one line actually starts with "data:".
+        assert!(sse_str.contains("data: payload\n"));
+        assert_eq!(
+            sse_str.lines().filter(|l| l.starts_with("data:")).count(),
+            1
+        );
+    }
+
+    #[test]
+    fn test_strip_newlines() {
+        assert_eq!(strip_newlines("a\r\nb"), "ab");
+        assert_eq!(strip_newlines("clean"), "clean");
     }
 }

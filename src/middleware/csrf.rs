@@ -26,6 +26,23 @@ fn secure_compare(a: &str, b: &str) -> bool {
     a.as_bytes().ct_eq(b.as_bytes()).into()
 }
 
+/// Extract the `host[:port]` authority from a URL-ish string, stripping the scheme
+/// and any path/query/fragment. Used for exact same-origin comparison.
+///
+/// `https://example.com:8443/login?x=1` -> `example.com:8443`
+#[inline]
+fn origin_authority(value: &str) -> &str {
+    let without_scheme = value
+        .strip_prefix("https://")
+        .or_else(|| value.strip_prefix("http://"))
+        .unwrap_or(value);
+    // Authority ends at the first path/query/fragment delimiter.
+    match without_scheme.find(['/', '?', '#']) {
+        Some(idx) => &without_scheme[..idx],
+        None => without_scheme,
+    }
+}
+
 // ============================================================================
 // CSRF Token Generation
 // ============================================================================
@@ -349,31 +366,39 @@ impl CsrfMiddleware {
     }
 
     /// Validate origin/referer headers.
+    ///
+    /// SECURITY: comparisons are done on the full authority (`host[:port]`) and must
+    /// match *exactly*. Earlier versions used `starts_with`/`contains`, which allowed
+    /// `example.com.evil.com` (Origin) or `evil.com/?x=example.com` (Referer) to pass.
     fn validate_origin(&self, request: &Request) -> bool {
-        let host = request.headers.get("host").cloned().unwrap_or_default();
+        let host = match request.headers.get("host") {
+            // Empty Host cannot be verified against; reject rather than match "".
+            Some(h) if !h.is_empty() => h.as_str(),
+            _ => return false,
+        };
 
-        // Check Origin header
+        // Check Origin header first (most reliable — set by the browser, not spoofable
+        // from script for cross-origin requests).
         if let Some(origin) = request.headers.get("origin") {
-            if self.config.allowed_origins.is_empty() {
-                // If no allowed origins specified, check if origin matches host
-                let origin_host = origin
-                    .trim_start_matches("http://")
-                    .trim_start_matches("https://");
-                return origin_host.starts_with(&host);
+            if !self.config.allowed_origins.is_empty() {
+                // Exact full-origin match against the configured allow-list.
+                return self.config.allowed_origins.iter().any(|o| o == origin);
             }
-            return self.config.allowed_origins.contains(origin);
+            // Same-origin: the Origin authority must equal the Host exactly.
+            return origin_authority(origin) == host;
         }
 
-        // Fall back to Referer header
+        // Fall back to Referer header.
         if let Some(referer) = request.headers.get("referer") {
-            if self.config.allowed_origins.is_empty() {
-                return referer.contains(&host);
+            let ref_authority = origin_authority(referer);
+            if !self.config.allowed_origins.is_empty() {
+                return self
+                    .config
+                    .allowed_origins
+                    .iter()
+                    .any(|o| origin_authority(o) == ref_authority);
             }
-            return self
-                .config
-                .allowed_origins
-                .iter()
-                .any(|o| referer.starts_with(o));
+            return ref_authority == host;
         }
 
         // No origin or referer - reject for unsafe methods
@@ -559,5 +584,26 @@ mod tests {
         assert!(!middleware.is_safe_method("POST"));
         assert!(!middleware.is_safe_method("PUT"));
         assert!(!middleware.is_safe_method("DELETE"));
+    }
+
+    #[test]
+    fn test_origin_authority_strips_scheme_and_path() {
+        assert_eq!(origin_authority("https://example.com"), "example.com");
+        assert_eq!(origin_authority("http://example.com"), "example.com");
+        assert_eq!(
+            origin_authority("https://example.com:8443/login?x=1"),
+            "example.com:8443"
+        );
+        // No scheme -> value is already an authority (Host header form).
+        assert_eq!(origin_authority("example.com:80"), "example.com:80");
+    }
+
+    #[test]
+    fn test_origin_authority_rejects_suffix_attack() {
+        // Regression: `example.com.evil.com` must NOT be treated as `example.com`.
+        let host = "example.com";
+        assert_ne!(origin_authority("https://example.com.evil.com"), host);
+        assert_ne!(origin_authority("https://evil.com"), host);
+        assert_eq!(origin_authority("https://example.com"), host);
     }
 }

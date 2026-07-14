@@ -55,6 +55,12 @@ pub mod minijinja_engine;
 // Rust-native async HTTP client
 pub mod http_client;
 
+// Persistent asyncio event loop used to drive async def handlers.
+pub mod async_loop;
+
+// Native async data layer: real Postgres pool + Redis client (issue #5).
+pub mod db;
+
 use pyo3::prelude::*;
 use std::sync::Arc;
 
@@ -81,6 +87,21 @@ pub struct Cello {
     cache_store: Arc<parking_lot::RwLock<Option<Arc<dyn middleware::cache::CacheStore>>>>,
     startup_handlers: Vec<PyObject>,
     shutdown_handlers: Vec<PyObject>,
+    /// Maximum request body size in bytes (0 = unlimited). Enforced by the server
+    /// before the body is buffered, preventing unbounded-memory (OOM) requests.
+    max_body_size: usize,
+    /// Timeout (seconds, 0 = disabled) for reading the full request body.
+    read_body_timeout_secs: u64,
+    /// Timeout (seconds, 0 = disabled) for reading request headers (Slowloris guard).
+    read_header_timeout_secs: u64,
+    /// Timeout (seconds, 0 = disabled) for a single handler to produce a response.
+    handler_timeout_secs: u64,
+    /// Native Postgres pool built by `enable_database()`, exposed as `app.database`
+    /// and injected into each request as `request.database`.
+    database_client: Option<Py<db::PyDatabase>>,
+    /// Native Redis client built by `enable_redis()`, exposed as `app.redis`
+    /// and injected into each request as `request.redis`.
+    redis_client: Option<Py<db::PyRedis>>,
 }
 
 #[pymethods]
@@ -99,6 +120,16 @@ impl Cello {
             cache_store: Arc::new(parking_lot::RwLock::new(None)),
             startup_handlers: Vec::new(),
             shutdown_handlers: Vec::new(),
+            // Generous 100 MB default cap: prevents OOM DoS out of the box while
+            // accommodating typical uploads. Override via `set_limits()`.
+            max_body_size: 100 * 1024 * 1024,
+            // Timeouts opt-in by default so long-lived/streaming handlers are not
+            // broken silently. Enable via `set_timeouts()`.
+            read_body_timeout_secs: 0,
+            read_header_timeout_secs: 0,
+            handler_timeout_secs: 0,
+            database_client: None,
+            redis_client: None,
         }
     }
 
@@ -150,6 +181,23 @@ impl Cello {
             self.add_route(&method, &path, handler)?;
         }
         Ok(())
+    }
+
+    /// Configure request size limits (currently: maximum body size in bytes).
+    ///
+    /// Pass a `LimitsConfig`. `max_body_size = 0` disables the cap (unlimited).
+    pub fn set_limits(&mut self, config: &PyLimitsConfig) {
+        self.max_body_size = config.max_body_size;
+    }
+
+    /// Configure server timeouts (all values in seconds; 0 disables that timeout).
+    ///
+    /// Pass a `TimeoutConfig`. Uses `read_header_timeout` (Slowloris guard),
+    /// `read_body_timeout`, and `handler_timeout`.
+    pub fn set_timeouts(&mut self, config: &PyTimeoutConfig) {
+        self.read_header_timeout_secs = config.read_header_timeout;
+        self.read_body_timeout_secs = config.read_body_timeout;
+        self.handler_timeout_secs = config.handler_timeout;
     }
 
     /// Enable CORS middleware.
@@ -358,8 +406,24 @@ impl Cello {
     }
 
     /// Enable CSRF protection middleware.
-    pub fn enable_csrf(&mut self) {
-        let mw = middleware::csrf::CsrfMiddleware::new();
+    #[pyo3(signature = (cookie_name=None, header_name=None, allowed_origins=None))]
+    pub fn enable_csrf(
+        &mut self,
+        cookie_name: Option<String>,
+        header_name: Option<String>,
+        allowed_origins: Option<Vec<String>>,
+    ) {
+        let mut config = middleware::csrf::CsrfConfig::default();
+        if let Some(c) = cookie_name {
+            config.cookie_name = c;
+        }
+        if let Some(h) = header_name {
+            config.header_name = h;
+        }
+        if let Some(o) = allowed_origins {
+            config.allowed_origins = o;
+        }
+        let mw = middleware::csrf::CsrfMiddleware::with_config(config);
         self.middleware.add(mw);
     }
 
@@ -507,51 +571,44 @@ impl Cello {
         }
     }
 
-    /// Enable database connection pooling.
+    /// Enable the native Postgres connection pool (real, backed by
+    /// `deadpool-postgres`). After this, `app.database` and `request.database`
+    /// return a live pool exposing `fetch`/`fetchrow`/`fetchval`/`execute`/
+    /// `transaction` (see `db::PyDatabase`).
     #[pyo3(signature = (config))]
-    pub fn enable_database(&mut self, config: PyDatabaseConfig) {
-        let db_config = middleware::database::DatabaseConfig {
-            url: config.url.clone(),
-            pool_size: config.pool_size,
-            min_idle: config.min_idle,
-            max_lifetime: std::time::Duration::from_secs(config.max_lifetime_secs),
-            connection_timeout: std::time::Duration::from_secs(config.connection_timeout_secs),
-            idle_timeout: std::time::Duration::from_secs(config.idle_timeout_secs),
-            statement_cache_size: 100,
-            application_name: config.application_name.clone(),
-        };
-
-        // Register the config as a singleton for DI
-        let _pool = middleware::database::MockDatabasePool::new(db_config);
-        println!("🗄️  Database pool enabled:");
-        println!("   URL: {}", config.url);
+    pub fn enable_database(&mut self, py: Python<'_>, config: PyDatabaseConfig) -> PyResult<()> {
+        let database = db::PyDatabase::connect(&config.url, config.pool_size)?;
+        self.database_client = Some(Py::new(py, database)?);
+        println!("🗄️  Database pool enabled (native deadpool-postgres):");
         println!("   Pool size: {}", config.pool_size);
+        Ok(())
     }
 
-    /// Enable Redis connection.
+    /// Enable the native async Redis client (real, backed by the `redis` crate's
+    /// connection manager). After this, `app.redis` and `request.redis` return a
+    /// live client (see `db::PyRedis`).
     #[pyo3(signature = (config))]
-    pub fn enable_redis(&mut self, config: PyRedisConfig) {
-        let redis_config = middleware::redis::RedisConfig {
-            url: config.url.clone(),
-            pool_size: config.pool_size,
-            min_idle: config.min_idle,
-            connection_timeout: std::time::Duration::from_secs(config.connection_timeout_secs),
-            idle_timeout: std::time::Duration::from_secs(config.idle_timeout_secs),
-            cluster_mode: config.cluster_mode,
-            default_ttl: config.default_ttl,
-            database: config.database,
-            password: config.password.clone(),
-            tls: config.tls,
-            key_prefix: config.key_prefix.clone(),
-        };
-
-        let _client = middleware::redis::MockRedisClient::new(redis_config);
-        println!("🔴 Redis connection enabled:");
-        println!("   URL: {}", config.url);
-        println!("   Pool size: {}", config.pool_size);
+    pub fn enable_redis(&mut self, py: Python<'_>, config: PyRedisConfig) -> PyResult<()> {
+        let redis = db::PyRedis::connect(&config.url)?;
+        self.redis_client = Some(Py::new(py, redis)?);
+        println!("🔴 Redis connection enabled (native redis crate):");
         if config.cluster_mode {
-            println!("   Cluster mode: enabled");
+            println!("   Cluster mode: requested (native client uses standard mode)");
         }
+        Ok(())
+    }
+
+    /// The native Postgres pool, or `None` if `enable_database()` was not called.
+    /// Use inside `on_event("startup")` to create tables, etc.
+    #[getter]
+    pub fn database(&self, py: Python<'_>) -> Option<PyObject> {
+        self.database_client.as_ref().map(|d| d.to_object(py))
+    }
+
+    /// The native Redis client, or `None` if `enable_redis()` was not called.
+    #[getter]
+    pub fn redis(&self, py: Python<'_>) -> Option<PyObject> {
+        self.redis_client.as_ref().map(|r| r.to_object(py))
     }
 
     // ========================================================================
@@ -845,6 +902,16 @@ def openapi_handler(request):
         let startup_handlers = self.startup_handlers.clone();
         let shutdown_handlers = self.shutdown_handlers.clone();
 
+        // Limits/timeouts are plain Copy values captured for the server config.
+        let max_body_size = self.max_body_size;
+        let read_body_timeout_secs = self.read_body_timeout_secs;
+        let read_header_timeout_secs = self.read_header_timeout_secs;
+        let handler_timeout_secs = self.handler_timeout_secs;
+
+        // Start the persistent asyncio loop now, while single-threaded and holding the
+        // GIL, so the first async request neither pays init cost nor races on it.
+        async_loop::ensure_started(py);
+
         // Release the GIL and run a native Tokio current-thread runtime.
         //
         // pyo3_asyncio::tokio::run was previously used here but it drives Tokio I/O
@@ -861,6 +928,12 @@ def openapi_handler(request):
                 .block_on(async move {
                     let mut config = server::ServerConfig::new(&host_owned, port);
                     config.workers = workers.unwrap_or(0);
+                    config.max_body_size = max_body_size;
+                    let secs_to_opt =
+                        |s: u64| if s == 0 { None } else { Some(std::time::Duration::from_secs(s)) };
+                    config.read_body_timeout = secs_to_opt(read_body_timeout_secs);
+                    config.read_header_timeout = secs_to_opt(read_header_timeout_secs);
+                    config.handler_timeout = secs_to_opt(handler_timeout_secs);
 
                     let server = Server::new(
                         config,
@@ -2116,12 +2189,22 @@ async fn run_lifecycle_handler_async(handler: PyObject) -> Result<(), String> {
     })
     .map_err(|e| e.to_string())?;
 
-    // Phase 2 (GIL released): await coroutine via Tokio if needed.
+    // Phase 2 (GIL released): drive the coroutine on the persistent asyncio loop.
+    // (The previous `pyo3_asyncio::tokio::into_future` path failed at runtime because
+    // pyo3_asyncio is never initialised, so async startup/shutdown hooks silently did
+    // not run.)
     if is_coro {
-        let future = Python::with_gil(|py| {
-            pyo3_asyncio::tokio::into_future(result.as_ref(py)).map_err(|e| e.to_string())
-        })?;
-        future.await.map(|_| ()).map_err(|e| e.to_string())?;
+        let (tx, rx) = tokio::sync::oneshot::channel::<Result<(), String>>();
+        tokio::task::spawn_blocking(move || {
+            let r = Python::with_gil(|py| {
+                async_loop::run_coroutine_blocking(py, result.as_ref(py)).map(|_| ())
+            });
+            let _ = tx.send(r);
+        });
+        match rx.await {
+            Ok(inner) => inner?,
+            Err(e) => return Err(format!("Lifecycle channel error: {e}")),
+        }
     }
 
     Ok(())
@@ -2177,6 +2260,11 @@ fn _cello(_py: Python<'_>, m: &PyModule) -> PyResult<()> {
     // Rust-native async HTTP client
     m.add_class::<http_client::PyAsyncClient>()?;
     m.add_class::<http_client::PyHttpResponse>()?;
+
+    // v1.4.0 - Native async data layer (real Postgres pool + Redis client)
+    m.add_class::<db::PyDatabase>()?;
+    m.add_class::<db::PyTransaction>()?;
+    m.add_class::<db::PyRedis>()?;
 
     // v0.7.0+ / v0.8.0 - Enterprise & Data Layer Configuration Classes
     m.add_class::<PyOpenTelemetryConfig>()?;

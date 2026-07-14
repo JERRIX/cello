@@ -231,25 +231,21 @@ impl HandlerRegistry {
 
         // ── Phase 2 (GIL released during I/O waits): drive coroutine ────────────
         //
-        // pyo3_asyncio::tokio::into_future requires pyo3_asyncio to be initialised
-        // via its own `run()` entry point. Since v1.2.1 the server uses native
-        // `py.allow_threads + tokio::block_on` (fixing port binding on Python 3.12+),
-        // so pyo3_asyncio is never initialised and into_future fails at runtime.
+        // The coroutine is submitted to a single PERSISTENT asyncio loop (see
+        // `crate::async_loop`) via `run_coroutine_threadsafe`, rather than a fresh
+        // `asyncio.run()` per request. This keeps loop-bound resources (aiohttp/
+        // asyncpg pools, asyncio locks/queues) valid across requests and lets the GIL
+        // be released while the coroutine awaits I/O (so async handlers run
+        // concurrently instead of serialising on the GIL).
         //
-        // Fix: offload to a blocking thread via spawn_blocking so the Tokio thread
-        // is released while asyncio.run() drives the coroutine to completion.
-        // asyncio.run() creates a fresh event loop per call; the overhead is small
-        // (~0.1 ms) compared to typical handler I/O.
+        // We offload the wait to a blocking thread so the Tokio worker is free; the
+        // wait inside `Future.result()` releases the GIL.
         let final_result: PyObject = if is_coroutine {
             let (tx, rx) = tokio::sync::oneshot::channel::<Result<PyObject, String>>();
             let coro = raw_result;
             tokio::task::spawn_blocking(move || {
-                let result = Python::with_gil(|py| -> Result<PyObject, String> {
-                    let asyncio = py.import("asyncio").map_err(|e| e.to_string())?;
-                    asyncio
-                        .call_method1("run", (coro.as_ref(py),))
-                        .map(|r| r.into_py(py))
-                        .map_err(|e| e.to_string())
+                let result = Python::with_gil(|py| {
+                    crate::async_loop::run_coroutine_blocking(py, coro.as_ref(py))
                 });
                 let _ = tx.send(result);
             });

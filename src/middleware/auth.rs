@@ -357,9 +357,13 @@ impl BasicAuth {
 
         Self {
             realm: "Restricted".to_string(),
-            // Use secure_compare for timing-attack-resistant validation
+            // Use secure_compare for timing-attack-resistant validation.
+            // Evaluate BOTH comparisons (bitwise `&`, not short-circuiting `&&`) so the
+            // response time does not reveal whether only the username was wrong.
             validator: Arc::new(move |u, p| {
-                secure_compare(u, &expected_user) && secure_compare(p, &expected_pass)
+                let user_ok = secure_compare(u, &expected_user);
+                let pass_ok = secure_compare(p, &expected_pass);
+                user_ok & pass_ok
             }),
             skip_paths: Vec::new(),
             user_key: "basic_auth_user".to_string(),

@@ -37,7 +37,7 @@ hide:
 [:material-package-variant: PyPI](https://pypi.org/project/cello-framework/){ .md-button }
 
 <div class="hero-badges">
-  <code class="badge-version">v1.2.4</code>
+  <code class="badge-version">v1.3.0</code>
   <code class="badge-tests">441 tests passing</code>
   <code class="badge-license">MIT License</code>
   <code class="badge-python">Python 3.12+</code>
@@ -370,21 +370,23 @@ How Cello stacks up against popular Python web frameworks (4 workers, 5 processe
 
 <!-- ===== WHAT'S NEW ===== -->
 
-## :material-creation: What's New in v1.2.4
+## :material-creation: What's New in v1.3.0
 
 <div class="whats-new-box" markdown>
 
-!!! tip "v1.2.4 — Critical Fix: async def Handlers Now Work Correctly"
+!!! tip "v1.3.0 — Async Rework, Security Hardening & DoS Protection"
 
-    Cello v1.2.4 fixes a critical regression introduced in v1.2.1 where all `async def` route handlers silently returned 500 errors.
+    Cello v1.3.0 is a bug-fix and hardening release that also reworks how async handlers run.
 
-    - :material-bug-check: **Async handlers fixed** — `async def` handlers now execute correctly; `pyo3_asyncio::tokio::into_future` was failing silently after the v1.2.1 server startup change.
+    - :material-sync: **Persistent asyncio loop** — `async def` handlers run on one long-lived event loop, so loop-bound resources (aiohttp/asyncpg pools, `asyncio.Lock`) survive across requests and the GIL is released during I/O instead of serializing every request.
 
-    - :material-language-rust: **`spawn_blocking + asyncio.run()`** — coroutines are now driven via Tokio's blocking thread pool, releasing the main Tokio thread during Python I/O waits.
+    - :material-shield-lock: **Security fixes** — CSRF Origin/Referer bypass closed (exact-authority matching), skip-path prefix bypass removed framework-wide, CORS `Vary: Origin`, timing-safe BasicAuth, SSE injection blocked.
 
-    - :material-test-tube: **New async client test suite** — `tests/verify_async_client.py` covers all HTTP methods with a self-contained local echo server.
+    - :material-database-lock: **DoS protection** — request body size limits (`App.set_limits()`, 413) and header/body/handler timeouts (`App.set_timeouts()`, 408/504).
 
-    [:material-tag: Full Release Notes](releases/v1.2.4.md){ .md-button .md-button--primary }
+    - :material-numeric: **Correctness** — large integers no longer corrupted to floats, DELETE bodies read, Range/query-decode fixes.
+
+    [:material-tag: Full Release Notes](releases/v1.3.0.md){ .md-button .md-button--primary }
     [:material-book-open-variant: Migration Guide](releases/migration.md){ .md-button }
 
 </div>

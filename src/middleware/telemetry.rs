@@ -19,7 +19,7 @@
 //! ))
 //! ```
 
-use super::{AsyncMiddleware, MiddlewareAction, MiddlewareResult};
+use super::{path_matches_skip, AsyncMiddleware, MiddlewareAction, MiddlewareResult};
 use crate::request::Request;
 use crate::response::Response;
 
@@ -216,7 +216,7 @@ impl OpenTelemetryMiddleware {
             .config
             .excluded_paths
             .iter()
-            .any(|p| path.starts_with(p))
+            .any(|p| path_matches_skip(path, p))
     }
 
     /// Extract trace context from request headers (W3C Trace Context).

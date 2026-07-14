@@ -528,6 +528,13 @@ fn parse_range_header(header: &str, file_size: u64) -> Result<(u64, u64), String
         return Err("Invalid range header format".to_string());
     }
 
+    // A zero-length resource has no satisfiable byte range. Guard here so the
+    // `file_size - 1` below cannot underflow (which panics in debug and wraps to
+    // u64::MAX in release).
+    if file_size == 0 {
+        return Err("Range not satisfiable".to_string());
+    }
+
     let range = &header[6..];
     let parts: Vec<&str> = range.split('-').collect();
 
@@ -616,6 +623,21 @@ mod tests {
         assert_eq!(parse_range_header("bytes=-100", 1000), Ok((900, 999)));
         assert!(parse_range_header("bytes=500-400", 1000).is_err());
         assert!(parse_range_header("invalid", 1000).is_err());
+    }
+
+    #[test]
+    fn test_parse_range_header_zero_length_file() {
+        // Regression: a 0-byte file must not underflow `file_size - 1` (panic in
+        // debug / wrap to u64::MAX in release); every range is unsatisfiable.
+        assert!(parse_range_header("bytes=0-", 0).is_err());
+        assert!(parse_range_header("bytes=-100", 0).is_err());
+        assert!(parse_range_header("bytes=0-0", 0).is_err());
+    }
+
+    #[test]
+    fn test_parse_range_header_out_of_bounds() {
+        assert!(parse_range_header("bytes=0-1000", 1000).is_err());
+        assert!(parse_range_header("bytes=1000-1001", 1000).is_err());
     }
 
     #[test]
