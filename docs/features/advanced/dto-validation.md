@@ -13,6 +13,41 @@ Cello provides a Data Transfer Object (DTO) system for controlling which fields 
 
 DTOs solve a common problem: your internal data model has fields that should not be exposed to clients (like password hashes), and input data needs validation before reaching your business logic.
 
+## Request Body Validation (`body=`)
+
+The fastest way to validate an incoming JSON body is the `body=` argument on any
+route decorator. Cello parses the body, validates it against your model, and —
+on failure — returns **`400`** with a `{"detail": [...]}` payload **before your
+handler runs**. On success the validated instance is injected into the handler.
+
+```python
+from cello import App
+from pydantic import BaseModel
+
+app = App()
+
+class UserDTO(BaseModel):
+    name: str
+    age: int
+
+@app.post("/users", body=UserDTO)
+def create_user(request, user):        # `user` is a validated UserDTO
+    return {"id": 1, "name": user.name, "age": user.age}
+```
+
+- Bad input → `400 {"detail": [...]}` automatically, no boilerplate.
+- Works with **Pydantic models, dataclasses, and plain classes** constructible
+  from the decoded JSON (`Model(**json)`).
+- The instance is injected into the parameter annotated with the model, or the
+  first non-`request` parameter otherwise.
+- Available on `get/post/put/delete/patch` for both `App` and `Blueprint`.
+
+!!! tip "Explicit 400 vs. type-hint 422"
+    `body=` is the explicit form and returns **400**. Cello also supports
+    *implicit* validation: annotate a handler parameter with a Pydantic model
+    and it is validated automatically, returning **422** on failure. Use `body=`
+    when you want the clearer, decorator-declared contract.
+
 ```
 Client Request                 DTO Layer                    Internal Model
 {                              Filter & Validate            {

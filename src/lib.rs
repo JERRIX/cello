@@ -304,15 +304,21 @@ impl Cello {
     }
 
     /// Enable caching middleware.
-    #[pyo3(signature = (ttl=300, methods=None, exclude_paths=None))]
+    ///
+    /// `compress` (default `True`) gzips a cache HIT inline for clients that send
+    /// `Accept-Encoding: gzip`, so cached large responses stay compressed even
+    /// though a HIT short-circuits the compression middleware.
+    #[pyo3(signature = (ttl=300, methods=None, exclude_paths=None, compress=true))]
     pub fn enable_caching(
         &mut self,
         ttl: u64,
         methods: Option<Vec<String>>,
         exclude_paths: Option<Vec<String>>,
+        compress: bool,
     ) {
         let mut config = middleware::cache::CacheConfig::default();
         config.default_ttl = ttl;
+        config.compress = compress;
         if let Some(m) = methods {
             config.methods = m;
         }
@@ -640,13 +646,18 @@ impl Cello {
     // v0.9.0 - API Protocol Features
     // ========================================================================
 
-    /// Enable gRPC service support.
+    /// Record gRPC configuration.
+    ///
+    /// NOTE: this does **not** start a gRPC server on its own — it only records
+    /// intent and validates the config. The gRPC runtime is provided by the
+    /// `cello.grpc` Python module; use that to serve gRPC services.
     #[pyo3(signature = (config=None))]
     pub fn enable_grpc(&mut self, config: Option<PyGrpcConfig>) {
         let config = config
             .unwrap_or_else(|| PyGrpcConfig::new("[::]:50051", true, 4194304, false, 60, 100));
 
-        let grpc_config = middleware::grpc::GrpcConfig {
+        // Validate the config by constructing it (dropped immediately).
+        let _grpc_config = middleware::grpc::GrpcConfig {
             address: config.address.clone(),
             services: Vec::new(),
             reflection: config.reflection,
@@ -656,49 +667,47 @@ impl Cello {
             concurrency_limit: config.concurrency_limit,
         };
 
-        let _server = middleware::grpc::GrpcServer::new(grpc_config);
-        println!("🔌 gRPC enabled:");
-        println!("   Address: {}", config.address);
-        println!("   Reflection: {}", config.reflection);
-        if config.enable_web {
-            println!("   gRPC-Web: enabled");
-        }
+        eprintln!(
+            "ℹ️  gRPC configured (address {}). This records config only — serve gRPC via the `cello.grpc` module.",
+            config.address
+        );
     }
 
-    /// Add a gRPC service.
+    /// Record a gRPC service name (config only; see `enable_grpc`).
     #[pyo3(signature = (name, methods=None))]
     pub fn add_grpc_service(&mut self, name: String, methods: Option<Vec<String>>) {
-        let methods = methods.unwrap_or_default();
-        println!("🔌 gRPC service registered: {name}");
-        for method in &methods {
-            println!("   - {method}");
-        }
+        let _methods = methods.unwrap_or_default();
+        eprintln!("ℹ️  gRPC service recorded: {name} (runtime lives in the `cello.grpc` module).");
     }
 
-    /// Enable message queue integration.
+    /// Record message-queue (Kafka) configuration.
+    ///
+    /// NOTE: config only — producing/consuming is provided by the
+    /// `cello.messaging` Python module; this does not start a broker client.
     #[pyo3(signature = (config))]
     pub fn enable_messaging(&mut self, config: PyKafkaConfig) {
-        println!("📨 Message queue enabled:");
-        println!("   Brokers: {}", config.brokers.join(", "));
-        if let Some(ref group_id) = config.group_id {
-            println!("   Group ID: {group_id}");
-        }
+        eprintln!(
+            "ℹ️  Kafka configured (brokers: {}). This records config only — use the `cello.messaging` module.",
+            config.brokers.join(", ")
+        );
     }
 
-    /// Enable RabbitMQ integration.
+    /// Record RabbitMQ configuration (config only; see `cello.messaging`).
     #[pyo3(signature = (config))]
     pub fn enable_rabbitmq(&mut self, config: PyRabbitMQConfig) {
-        println!("🐰 RabbitMQ enabled:");
-        println!("   URL: {}", config.url);
-        println!("   VHost: {}", config.vhost);
+        eprintln!(
+            "ℹ️  RabbitMQ configured (url: {}). This records config only — use the `cello.messaging` module.",
+            config.url
+        );
     }
 
-    /// Enable SQS integration.
+    /// Record SQS configuration (config only; see `cello.messaging`).
     #[pyo3(signature = (config))]
     pub fn enable_sqs(&mut self, config: PySqsConfig) {
-        println!("☁️  SQS enabled:");
-        println!("   Region: {}", config.region);
-        println!("   Queue: {}", config.queue_url);
+        eprintln!(
+            "ℹ️  SQS configured (region: {}, queue: {}). This records config only — use the `cello.messaging` module.",
+            config.region, config.queue_url
+        );
     }
 
     // ========================================================================
@@ -709,12 +718,17 @@ impl Cello {
     // v0.10.0 - Advanced Pattern Features
     // ========================================================================
 
-    /// Enable event sourcing support.
+    /// Record event-sourcing configuration.
+    ///
+    /// NOTE: config only. Event stores, aggregates, and snapshots are provided
+    /// by the `cello.eventsourcing` Python module — this does not wire a store
+    /// into the request pipeline.
     #[pyo3(signature = (config=None))]
     pub fn enable_event_sourcing(&mut self, config: Option<PyEventSourcingConfig>) {
         let config = config.unwrap_or_else(PyEventSourcingConfig::memory);
 
-        let es_config = middleware::eventsourcing::EventSourcingConfig {
+        // Validate the config by constructing it (dropped immediately).
+        let _es_config = middleware::eventsourcing::EventSourcingConfig {
             store_type: config.store_type.clone(),
             snapshot_interval: config.snapshot_interval,
             enable_snapshots: config.enable_snapshots,
@@ -723,68 +737,51 @@ impl Cello {
             connection_url: config.connection_url.clone(),
         };
 
-        let _store = middleware::eventsourcing::InMemoryEventStore::with_config(es_config);
-        println!("Event sourcing enabled:");
-        println!("   Store type: {}", config.store_type);
-        println!(
-            "   Snapshots: {}",
-            if config.enable_snapshots {
-                "enabled"
-            } else {
-                "disabled"
-            }
+        eprintln!(
+            "ℹ️  Event sourcing configured (store: {}). This records config only — use the `cello.eventsourcing` module.",
+            config.store_type
         );
-        println!("   Snapshot interval: {} events", config.snapshot_interval);
-        if let Some(ref url) = config.connection_url {
-            println!("   Connection: {url}");
-        }
     }
 
-    /// Enable CQRS (Command Query Responsibility Segregation) support.
+    /// Record CQRS configuration.
+    ///
+    /// NOTE: config only. Command/query buses are provided by the `cello.cqrs`
+    /// Python module — this does not register handlers into the pipeline.
     #[pyo3(signature = (config=None))]
     pub fn enable_cqrs(&mut self, config: Option<PyCqrsConfig>) {
         let config = config.unwrap_or_else(PyCqrsConfig::default);
 
-        let cqrs_config = middleware::cqrs::CqrsConfig {
+        let _cqrs_config = middleware::cqrs::CqrsConfig {
             enable_event_sync: config.enable_event_sync,
             command_timeout_ms: config.command_timeout_ms,
             query_timeout_ms: config.query_timeout_ms,
             max_retries: config.max_retries,
         };
 
-        let _command_bus = middleware::cqrs::CommandBus::with_config(cqrs_config.clone());
-        let _query_bus = middleware::cqrs::QueryBus::with_config(cqrs_config);
-        println!("CQRS enabled:");
-        println!("   Event sync: {}", config.enable_event_sync);
-        println!("   Command timeout: {}ms", config.command_timeout_ms);
-        println!("   Query timeout: {}ms", config.query_timeout_ms);
-        println!("   Max retries: {}", config.max_retries);
+        eprintln!(
+            "ℹ️  CQRS configured (event_sync: {}). This records config only — use the `cello.cqrs` module.",
+            config.enable_event_sync
+        );
     }
 
-    /// Enable Saga pattern for distributed transaction orchestration.
+    /// Record Saga configuration.
+    ///
+    /// NOTE: config only. Saga orchestration is provided by the `cello.saga`
+    /// Python module — this does not start an orchestrator.
     #[pyo3(signature = (config=None))]
     pub fn enable_saga(&mut self, config: Option<PySagaConfig>) {
         let config = config.unwrap_or_else(PySagaConfig::default);
 
-        let saga_config = middleware::saga::SagaConfig {
+        let _saga_config = middleware::saga::SagaConfig {
             max_retries: config.max_retries,
             retry_delay_ms: config.retry_delay_ms,
             timeout_ms: config.timeout_ms,
             enable_logging: config.enable_logging,
         };
 
-        let _orchestrator = middleware::saga::SagaOrchestrator::with_config(saga_config);
-        println!("Saga orchestration enabled:");
-        println!("   Max retries: {}", config.max_retries);
-        println!("   Retry delay: {}ms", config.retry_delay_ms);
-        println!("   Timeout: {}ms", config.timeout_ms);
-        println!(
-            "   Logging: {}",
-            if config.enable_logging {
-                "enabled"
-            } else {
-                "disabled"
-            }
+        eprintln!(
+            "ℹ️  Saga configured (max_retries: {}). This records config only — use the `cello.saga` module.",
+            config.max_retries
         );
     }
 
@@ -1400,7 +1397,7 @@ impl PySessionConfig {
 
 /// Python-exposed security headers configuration.
 #[pyclass(name = "SecurityHeadersConfig")]
-#[derive(Clone)]
+#[derive(Clone, Default)]
 pub struct PySecurityHeadersConfig {
     #[pyo3(get, set)]
     pub x_frame_options: Option<String>,
@@ -1416,12 +1413,23 @@ pub struct PySecurityHeadersConfig {
     pub hsts_include_subdomains: bool,
     #[pyo3(get, set)]
     pub hsts_preload: bool,
+    /// Content-Security-Policy directives (from a `CSP` builder).
+    pub csp_directives: Option<std::collections::HashMap<String, Vec<String>>>,
+    /// Permissions-Policy directives, e.g. `{"geolocation": [], "camera": ["'self'"]}`.
+    pub permissions_policy: Option<std::collections::HashMap<String, Vec<String>>>,
+    /// Cross-Origin-Embedder-Policy: "unsafe-none" | "require-corp" | "credentialless".
+    pub coep: Option<String>,
+    /// Cross-Origin-Opener-Policy: "unsafe-none" | "same-origin" | "same-origin-allow-popups".
+    pub coop: Option<String>,
+    /// Cross-Origin-Resource-Policy: "same-site" | "same-origin" | "cross-origin".
+    pub corp: Option<String>,
 }
 
 #[pymethods]
 impl PySecurityHeadersConfig {
     #[new]
-    #[pyo3(signature = (x_frame_options="DENY", x_content_type_options=true, x_xss_protection="1; mode=block", referrer_policy="strict-origin-when-cross-origin", hsts_max_age=None, hsts_include_subdomains=false, hsts_preload=false))]
+    #[pyo3(signature = (x_frame_options="DENY", x_content_type_options=true, x_xss_protection="1; mode=block", referrer_policy="strict-origin-when-cross-origin", hsts_max_age=None, hsts_include_subdomains=false, hsts_preload=false, csp=None, permissions_policy=None, coep=None, coop=None, corp=None))]
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         x_frame_options: &str,
         x_content_type_options: bool,
@@ -1430,6 +1438,11 @@ impl PySecurityHeadersConfig {
         hsts_max_age: Option<u64>,
         hsts_include_subdomains: bool,
         hsts_preload: bool,
+        csp: Option<PyCsp>,
+        permissions_policy: Option<std::collections::HashMap<String, Vec<String>>>,
+        coep: Option<String>,
+        coop: Option<String>,
+        corp: Option<String>,
     ) -> Self {
         Self {
             x_frame_options: Some(x_frame_options.to_string()),
@@ -1439,21 +1452,31 @@ impl PySecurityHeadersConfig {
             hsts_max_age,
             hsts_include_subdomains,
             hsts_preload,
+            csp_directives: csp.map(|c| c.directives),
+            permissions_policy,
+            coep,
+            coop,
+            corp,
         }
     }
 
-    /// Create default secure headers.
+    /// Create default secure headers (strict CSP + cross-origin isolation).
     #[staticmethod]
     pub fn secure() -> Self {
-        Self::new(
-            "DENY",
-            true,
-            "1; mode=block",
-            "strict-origin-when-cross-origin",
-            Some(31536000),
-            true,
-            false,
-        )
+        let mut cfg = Self {
+            x_frame_options: Some("DENY".to_string()),
+            x_content_type_options: true,
+            x_xss_protection: Some("1; mode=block".to_string()),
+            referrer_policy: Some("strict-origin-when-cross-origin".to_string()),
+            hsts_max_age: Some(31536000),
+            hsts_include_subdomains: true,
+            hsts_preload: false,
+            ..Default::default()
+        };
+        cfg.coep = Some("require-corp".to_string());
+        cfg.coop = Some("same-origin".to_string());
+        cfg.corp = Some("same-origin".to_string());
+        cfg
     }
 }
 
@@ -1510,6 +1533,57 @@ fn build_security_headers_mw(
             h = h.preload();
         }
         h
+    });
+
+    // Content-Security-Policy (built from the CSP builder's directives).
+    if let Some(ref directives) = cfg.csp_directives {
+        use middleware::security::ContentSecurityPolicy;
+        let mut csp = ContentSecurityPolicy::new();
+        for (name, values) in directives {
+            let vals: Vec<&str> = values.iter().map(|s| s.as_str()).collect();
+            csp = csp.directive(name, vals);
+        }
+        mw.csp = Some(csp);
+    }
+
+    // Permissions-Policy (built from the directive map).
+    if let Some(ref directives) = cfg.permissions_policy {
+        use middleware::security::PermissionsPolicy;
+        let mut pp = PermissionsPolicy::new();
+        for (name, values) in directives {
+            let vals: Vec<&str> = values.iter().map(|s| s.as_str()).collect();
+            pp = pp.directive(name, vals);
+        }
+        mw.permissions_policy = Some(pp);
+    }
+
+    // Cross-Origin isolation headers (mapped from their string values).
+    mw.coep = cfg.coep.as_deref().and_then(|v| {
+        use middleware::security::CrossOriginEmbedderPolicy as E;
+        match v {
+            "unsafe-none" => Some(E::UnsafeNone),
+            "require-corp" => Some(E::RequireCorp),
+            "credentialless" => Some(E::Credentialless),
+            _ => None,
+        }
+    });
+    mw.coop = cfg.coop.as_deref().and_then(|v| {
+        use middleware::security::CrossOriginOpenerPolicy as O;
+        match v {
+            "unsafe-none" => Some(O::UnsafeNone),
+            "same-origin" => Some(O::SameOrigin),
+            "same-origin-allow-popups" => Some(O::SameOriginAllowPopups),
+            _ => None,
+        }
+    });
+    mw.corp = cfg.corp.as_deref().and_then(|v| {
+        use middleware::security::CrossOriginResourcePolicy as R;
+        match v {
+            "same-site" => Some(R::SameSite),
+            "same-origin" => Some(R::SameOrigin),
+            "cross-origin" => Some(R::CrossOrigin),
+            _ => None,
+        }
     });
 
     mw

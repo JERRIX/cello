@@ -41,6 +41,85 @@ def _validate_pydantic_params(pydantic_params, request, kwargs):
     return kwargs, errors
 
 
+def _coerce_body(model, data):
+    """Validate ``data`` against ``model``. Returns (instance, errors)."""
+    try:
+        if HAS_PYDANTIC and isinstance(model, type) and issubclass(model, BaseModel):
+            return model.model_validate(data), None
+        # Plain class / dataclass / framework DTO: construct from the mapping.
+        if isinstance(data, dict):
+            return model(**data), None
+        return model(data), None
+    except Exception as e:  # noqa: BLE001 - surface any validation failure as 400
+        if HAS_PYDANTIC and isinstance(e, ValidationError):
+            return None, e.errors()
+        return None, [{"loc": ["body"], "msg": str(e), "type": "value_error"}]
+
+
+def wrap_handler_with_body(handler, model):
+    """Wrap a handler so the JSON request body is parsed and validated against
+    ``model`` before the handler runs.
+
+    On success the validated instance is injected into the handler (into the
+    parameter annotated with ``model`` if present, otherwise the first
+    non-``request`` parameter). On failure a ``400`` response is returned with a
+    ``{"detail": [...]}`` body. Works with Pydantic models, dataclasses, and
+    plain classes constructible from the decoded JSON.
+    """
+    # Decide which parameter receives the validated body.
+    target = None
+    try:
+        sig = inspect.signature(handler)
+        hints = get_type_hints(handler)
+        params = [n for n in sig.parameters if n != "request"]
+        for name in params:
+            if hints.get(name) is model:
+                target = name
+                break
+        if target is None and params:
+            target = params[0]
+    except (TypeError, ValueError, NameError):
+        pass
+
+    def _validate(request):
+        try:
+            data = request.json()
+        except (ValueError, TypeError, UnicodeDecodeError, RuntimeError):
+            return None, Response.json(
+                {"detail": [{"loc": ["body"], "msg": "Invalid JSON body", "type": "value_error.json"}]},
+                status=400,
+            )
+        instance, errors = _coerce_body(model, data)
+        if errors:
+            return None, Response.json({"detail": errors}, status=400)
+        return instance, None
+
+    if inspect.iscoroutinefunction(handler):
+        @wraps(handler)
+        async def async_wrapper(request, *args, **kwargs):
+            instance, err = _validate(request)
+            if err is not None:
+                return err
+            if target is not None:
+                kwargs.setdefault(target, instance)
+            else:
+                args = (instance, *args)
+            return await handler(request, *args, **kwargs)
+        return async_wrapper
+
+    @wraps(handler)
+    def wrapper(request, *args, **kwargs):
+        instance, err = _validate(request)
+        if err is not None:
+            return err
+        if target is not None:
+            kwargs.setdefault(target, instance)
+        else:
+            args = (instance, *args)
+        return handler(request, *args, **kwargs)
+    return wrapper
+
+
 def wrap_handler_with_validation(handler):
     """
     Wrap a handler with Pydantic validation if type hints are present.

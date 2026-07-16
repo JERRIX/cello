@@ -78,6 +78,9 @@ pub struct PyRedis {
 impl PyRedis {
     /// Build a client from a Redis URL. The connection is opened lazily on first
     /// command, so this is safe to call at configuration time.
+    ///
+    /// Both `redis://` (plaintext) and `rediss://` (TLS, via rustls with webpki
+    /// roots) URLs are supported.
     pub fn connect(url: &str) -> PyResult<Self> {
         let client =
             redis::Client::open(url).map_err(|e| rt_err(format!("invalid Redis URL: {e}")))?;

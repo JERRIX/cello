@@ -357,6 +357,12 @@ pub struct CacheConfig {
     pub enable_conditional: bool,
     /// Vary headers to include in cache key
     pub vary_headers: Vec<String>,
+    /// Gzip a cache HIT inline when the client sends `Accept-Encoding: gzip`.
+    /// A HIT short-circuits the pipeline, so the compression middleware never
+    /// runs on it; this makes cached large responses compressed anyway.
+    pub compress: bool,
+    /// Minimum identity-body size (bytes) before a HIT is gzipped.
+    pub compress_min_size: usize,
 }
 
 impl Default for CacheConfig {
@@ -376,6 +382,8 @@ impl Default for CacheConfig {
             enable_last_modified: true,
             enable_conditional: true,
             vary_headers: Vec::new(),
+            compress: true,
+            compress_min_size: 1024,
         }
     }
 }
@@ -600,13 +608,39 @@ impl CacheMiddleware {
     #[allow(dead_code)]
     /// Restore Response from cached response.
     #[allow(dead_code)]
-    fn restore_response(&self, cached: &CachedResponse) -> Response {
+    fn restore_response(&self, cached: &CachedResponse, accept_gzip: bool) -> Response {
         let mut response = Response::new(cached.status);
-        response.set_body(cached.body.clone());
 
-        // Copy headers
+        // Copy headers first so we can honour/override Content-Encoding below.
         for (key, value) in &cached.headers {
             response.set_header(key, value);
+        }
+
+        // The cached body is stored identity (cache `after_async` runs before the
+        // compression middleware). A HIT short-circuits the pipeline, so gzip it
+        // here for gzip-capable clients instead of shipping it uncompressed.
+        let already_encoded = cached
+            .headers
+            .keys()
+            .any(|k| k.eq_ignore_ascii_case("content-encoding"));
+
+        if self.config.compress
+            && accept_gzip
+            && !already_encoded
+            && cached.body.len() >= self.config.compress_min_size
+        {
+            match crate::middleware::compress_gzip(&cached.body, 6) {
+                Ok(gz) => {
+                    response.set_body(gz);
+                    response.set_header("Content-Encoding", "gzip");
+                    // Cached under a key that ignores Accept-Encoding, so signal
+                    // that the representation varies by it.
+                    response.set_header("Vary", "Accept-Encoding");
+                }
+                Err(_) => response.set_body(cached.body.clone()),
+            }
+        } else {
+            response.set_body(cached.body.clone());
         }
 
         // Add cache headers
@@ -665,8 +699,15 @@ impl AsyncMiddleware for CacheMiddleware {
                         return Ok(MiddlewareAction::Continue);
                     }
 
+                    // Does the client accept gzip? (headers are lowercased)
+                    let accept_gzip = request
+                        .headers
+                        .get("accept-encoding")
+                        .map(|v| v.to_ascii_lowercase().contains("gzip"))
+                        .unwrap_or(false);
+
                     // Return cached response
-                    let response = self.restore_response(&cached);
+                    let response = self.restore_response(&cached, accept_gzip);
                     return Ok(MiddlewareAction::Stop(response));
                 }
                 Ok(None) => {}

@@ -135,7 +135,14 @@ tokio-postgres = { version = "0.7", features = [
 ] }
 
 # Native async Redis client (redis crate — first-class since v1.4.0)
-redis = { version = "0.25", features = ["tokio-comp", "connection-manager"] }
+# rustls TLS features enable `rediss://` URLs (matches the project's rustls stack).
+redis = { version = "0.25", features = [
+    "tokio-comp",
+    "connection-manager",
+    "tls-rustls",
+    "tls-rustls-webpki-roots",
+    "tokio-rustls-comp",
+] }
 
 # GraphQL Support
 async-graphql = { version = "7", optional = true }

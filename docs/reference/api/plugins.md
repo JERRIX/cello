@@ -31,7 +31,7 @@ app.enable_prometheus(endpoint="/metrics")
 | --- | --- | --- |
 | `enable_logging` | `enable_logging()` | Structured request/response logs |
 | `enable_compression` | `enable_compression(min_size=None)` | gzip responses larger than `min_size` bytes when the client sends `Accept-Encoding: gzip` |
-| `enable_caching` | `enable_caching(ttl=300, methods=None, exclude_paths=None)` | In-memory response cache with TTL; invalidate with `app.invalidate_cache([...])` |
+| `enable_caching` | `enable_caching(ttl=300, methods=None, exclude_paths=None, compress=True)` | In-memory response cache with TTL; a HIT is gzipped inline for gzip clients (`compress=True`); invalidate with `app.invalidate_cache([...])` |
 | `enable_rate_limit` | `enable_rate_limit(config)` | Token-bucket / sliding-window / adaptive limiting |
 | `enable_circuit_breaker` | `enable_circuit_breaker(failure_threshold=5, reset_timeout=30, half_open_target=3, failure_codes=None)` | Trips open after repeated failures |
 | `enable_prometheus` | `enable_prometheus(endpoint="/metrics", namespace=None, subsystem=None)` | Serves Prometheus metrics at `endpoint` |
@@ -46,10 +46,12 @@ app.enable_prometheus(endpoint="/metrics", namespace="myapp")
 app.enable_telemetry(OpenTelemetryConfig(service_name="myapp"))
 ```
 
-!!! warning "Cache + compression"
-    A cache **HIT** replays the stored (uncompressed) body and bypasses
-    compression. Exclude large, compressible routes from caching if you need
-    them gzipped on every request.
+!!! note "Cache + compression"
+    A cache **HIT** short-circuits the pipeline (the compression middleware
+    never runs on it), so the cache gzips the HIT **inline** for clients that
+    send `Accept-Encoding: gzip` when `compress=True` (the default) and the body
+    is ≥ 1 KB. It sets `Vary: Accept-Encoding`, and non-gzip clients still get
+    identity. Pass `compress=False` to disable.
 
 ---
 
@@ -71,17 +73,28 @@ routes appropriately for health/metrics/docs.
 `enable_security_headers` accepts three forms:
 
 ```python
-from cello import SecurityHeadersConfig
+from cello import SecurityHeadersConfig, CSP
 
 app.enable_security_headers()                          # sensible defaults
-app.enable_security_headers(True)                      # strict preset (CSP, 2y HSTS preload)
-app.enable_security_headers(SecurityHeadersConfig(     # explicit
+app.enable_security_headers(True)                      # strict preset (CSP, HSTS, cross-origin isolation)
+app.enable_security_headers(SecurityHeadersConfig(     # explicit — full control
     x_frame_options="DENY",
     referrer_policy="strict-origin-when-cross-origin",
     hsts_max_age=31_536_000,
     hsts_include_subdomains=True,
+    # Content-Security-Policy via the CSP builder:
+    csp=CSP().default_src(["'self'"]).img_src(["'self'", "data:"]),
+    # Permissions-Policy as {feature: [allowed-origins]} ([] = disabled):
+    permissions_policy={"geolocation": [], "camera": ["'self'"]},
+    # Cross-origin isolation:
+    coep="require-corp",            # unsafe-none | require-corp | credentialless
+    coop="same-origin",             # unsafe-none | same-origin | same-origin-allow-popups
+    corp="same-origin",             # same-site | same-origin | cross-origin
 ))
 ```
+
+`SecurityHeadersConfig.secure()` returns a hardened preset (DENY framing, 1-year
+HSTS + subdomains, and `require-corp` / `same-origin` cross-origin isolation).
 
 JWT / Basic / API-key:
 
@@ -138,7 +151,7 @@ Real, native connections (see the [Data Layer guide](../../data-layer.md)).
 | Plugin | Signature | Effect |
 | --- | --- | --- |
 | `enable_database` | `enable_database(DatabaseConfig(url=..., pool_size=...))` | Native Postgres pool at `app.database` / `request.database` |
-| `enable_redis` | `enable_redis(RedisConfig(url=...))` | Native async Redis client at `app.redis` / `request.redis` |
+| `enable_redis` | `enable_redis(RedisConfig(url=...))` | Native async Redis client at `app.redis` / `request.redis`; supports `redis://` and `rediss://` (TLS) |
 | `enable_templates` | `enable_templates(...)` | MiniJinja (Jinja2-compatible) template engine |
 
 ```python
@@ -146,6 +159,7 @@ from cello import DatabaseConfig, RedisConfig
 
 app.enable_database(DatabaseConfig(url="postgres://user:pass@localhost/db", pool_size=10))
 app.enable_redis(RedisConfig(url="redis://localhost:6379"))
+app.enable_redis(RedisConfig(url="rediss://user:pass@host:6380"))   # TLS (rustls)
 ```
 
 ---

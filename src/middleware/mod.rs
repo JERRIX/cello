@@ -751,7 +751,7 @@ impl Middleware for CompressionMiddleware {
 }
 
 /// Compress bytes using gzip.
-fn compress_gzip(data: &[u8], level: u32) -> Result<Vec<u8>, std::io::Error> {
+pub(crate) fn compress_gzip(data: &[u8], level: u32) -> Result<Vec<u8>, std::io::Error> {
     use flate2::write::GzEncoder;
     use flate2::Compression;
     use std::io::Write;

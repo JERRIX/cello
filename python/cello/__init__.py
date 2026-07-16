@@ -53,7 +53,15 @@ Example:
 
 """
 
-from .validation import wrap_handler_with_validation
+from .validation import wrap_handler_with_validation, wrap_handler_with_body
+
+
+def _validate_wrap(func, body):
+    """Apply explicit `body=` validation (400) when a model is given, else fall
+    back to type-hint-based Pydantic validation (422)."""
+    if body is not None:
+        return wrap_handler_with_body(func, body)
+    return wrap_handler_with_validation(func)
 from .database import transactional
 from .guards import (
     Guard,
@@ -333,42 +341,42 @@ class Blueprint:
         """Get the blueprint's name."""
         return self._bp.name
 
-    def get(self, path: str, guards: list = None):
+    def get(self, path: str, guards: list = None, body: type = None):
         """Register a GET route."""
         def decorator(func):
-            wrapped = _apply_guards(wrap_handler_with_validation(func), guards)
+            wrapped = _apply_guards(_validate_wrap(func, body), guards)
             self._bp.get(path, wrapped)
             return wrapped
         return decorator
 
-    def post(self, path: str, guards: list = None):
+    def post(self, path: str, guards: list = None, body: type = None):
         """Register a POST route."""
         def decorator(func):
-            wrapped = _apply_guards(wrap_handler_with_validation(func), guards)
+            wrapped = _apply_guards(_validate_wrap(func, body), guards)
             self._bp.post(path, wrapped)
             return wrapped
         return decorator
 
-    def put(self, path: str, guards: list = None):
+    def put(self, path: str, guards: list = None, body: type = None):
         """Register a PUT route."""
         def decorator(func):
-            wrapped = _apply_guards(wrap_handler_with_validation(func), guards)
+            wrapped = _apply_guards(_validate_wrap(func, body), guards)
             self._bp.put(path, wrapped)
             return wrapped
         return decorator
 
-    def delete(self, path: str, guards: list = None):
+    def delete(self, path: str, guards: list = None, body: type = None):
         """Register a DELETE route."""
         def decorator(func):
-            wrapped = _apply_guards(wrap_handler_with_validation(func), guards)
+            wrapped = _apply_guards(_validate_wrap(func, body), guards)
             self._bp.delete(path, wrapped)
             return wrapped
         return decorator
 
-    def patch(self, path: str, guards: list = None):
+    def patch(self, path: str, guards: list = None, body: type = None):
         """Register a PATCH route."""
         def decorator(func):
-            wrapped = _apply_guards(wrap_handler_with_validation(func), guards)
+            wrapped = _apply_guards(_validate_wrap(func, body), guards)
             self._bp.patch(path, wrapped)
             return wrapped
         return decorator
@@ -484,7 +492,7 @@ class App:
             "tags": tags or []
         })
 
-    def get(self, path: str, tags: list = None, summary: str = None, description: str = None, guards: list = None):
+    def get(self, path: str, tags: list = None, summary: str = None, description: str = None, guards: list = None, body: type = None):
         """
         Register a GET route.
 
@@ -504,43 +512,43 @@ class App:
                 return {"message": f"Hello, {request.params['name']}!"}
         """
         def decorator(func):
-            wrapped = _apply_guards(wrap_handler_with_validation(self._make_redis_aware(func)), guards)
+            wrapped = _apply_guards(_validate_wrap(self._make_redis_aware(func), body), guards)
             self._app.get(path, wrapped)
             self._register_route("GET", path, func, tags, summary, description)
             return wrapped
         return decorator
 
-    def post(self, path: str, tags: list = None, summary: str = None, description: str = None, guards: list = None):
+    def post(self, path: str, tags: list = None, summary: str = None, description: str = None, guards: list = None, body: type = None):
         """Register a POST route."""
         def decorator(func):
-            wrapped = _apply_guards(wrap_handler_with_validation(self._make_redis_aware(func)), guards)
+            wrapped = _apply_guards(_validate_wrap(self._make_redis_aware(func), body), guards)
             self._app.post(path, wrapped)
             self._register_route("POST", path, func, tags, summary, description)
             return wrapped
         return decorator
 
-    def put(self, path: str, tags: list = None, summary: str = None, description: str = None, guards: list = None):
+    def put(self, path: str, tags: list = None, summary: str = None, description: str = None, guards: list = None, body: type = None):
         """Register a PUT route."""
         def decorator(func):
-            wrapped = _apply_guards(wrap_handler_with_validation(self._make_redis_aware(func)), guards)
+            wrapped = _apply_guards(_validate_wrap(self._make_redis_aware(func), body), guards)
             self._app.put(path, wrapped)
             self._register_route("PUT", path, func, tags, summary, description)
             return wrapped
         return decorator
 
-    def delete(self, path: str, tags: list = None, summary: str = None, description: str = None, guards: list = None):
+    def delete(self, path: str, tags: list = None, summary: str = None, description: str = None, guards: list = None, body: type = None):
         """Register a DELETE route."""
         def decorator(func):
-            wrapped = _apply_guards(wrap_handler_with_validation(self._make_redis_aware(func)), guards)
+            wrapped = _apply_guards(_validate_wrap(self._make_redis_aware(func), body), guards)
             self._app.delete(path, wrapped)
             self._register_route("DELETE", path, func, tags, summary, description)
             return wrapped
         return decorator
 
-    def patch(self, path: str, tags: list = None, summary: str = None, description: str = None, guards: list = None):
+    def patch(self, path: str, tags: list = None, summary: str = None, description: str = None, guards: list = None, body: type = None):
         """Register a PATCH route."""
         def decorator(func):
-            wrapped = _apply_guards(wrap_handler_with_validation(self._make_redis_aware(func)), guards)
+            wrapped = _apply_guards(_validate_wrap(self._make_redis_aware(func), body), guards)
             self._app.patch(path, wrapped)
             self._register_route("PATCH", path, func, tags, summary, description)
             return wrapped
@@ -666,7 +674,7 @@ class App:
         """
         self._app.enable_rate_limit(config)
 
-    def enable_caching(self, ttl: int = 300, methods: list = None, exclude_paths: list = None):
+    def enable_caching(self, ttl: int = 300, methods: list = None, exclude_paths: list = None, compress: bool = True):
         """
         Enable smart caching middleware.
 
@@ -674,8 +682,12 @@ class App:
             ttl: Default TTL in seconds (default: 300)
             methods: List of HTTP methods to cache (default: ["GET", "HEAD"])
             exclude_paths: List of paths to exclude from cache
+            compress: Gzip a cache HIT inline for clients that send
+                ``Accept-Encoding: gzip`` (default: True). A HIT short-circuits
+                the compression middleware, so this keeps cached large responses
+                compressed. Sets ``Vary: Accept-Encoding``.
         """
-        self._app.enable_caching(ttl, methods, exclude_paths)
+        self._app.enable_caching(ttl, methods, exclude_paths, compress)
 
     def enable_circuit_breaker(self, failure_threshold: int = 5, reset_timeout: int = 30, half_open_target: int = 3, failure_codes: list = None):
         """
@@ -1248,10 +1260,10 @@ class App:
 
     def enable_grpc(self, config: "GrpcConfig" = None):
         """
-        Enable gRPC service support.
+        Record gRPC configuration (config only).
 
-        Configures a gRPC server with service registration, reflection,
-        and optional gRPC-Web support.
+        NOTE: this does not start a gRPC server. The gRPC runtime is provided by
+        the ``cello.grpc`` module; this call validates and records config.
 
         Args:
             config: GrpcConfig instance
@@ -1272,7 +1284,7 @@ class App:
 
     def add_grpc_service(self, name: str, methods: list = None):
         """
-        Register a gRPC service with the application.
+        Record a gRPC service name (config only; runtime lives in ``cello.grpc``).
 
         Args:
             name: Service name
@@ -1285,7 +1297,10 @@ class App:
 
     def enable_messaging(self, config: "KafkaConfig" = None):
         """
-        Enable Kafka message queue integration.
+        Record Kafka configuration (config only).
+
+        NOTE: producing/consuming is provided by the ``cello.messaging`` module;
+        this call records config and does not start a broker client.
 
         Args:
             config: KafkaConfig instance
@@ -1305,7 +1320,7 @@ class App:
 
     def enable_rabbitmq(self, config: "RabbitMQConfig" = None):
         """
-        Enable RabbitMQ message queue integration.
+        Record RabbitMQ configuration (config only; use ``cello.messaging`` for the runtime).
 
         Args:
             config: RabbitMQConfig instance
@@ -1325,7 +1340,7 @@ class App:
 
     def enable_sqs(self, config: "SqsConfig" = None):
         """
-        Enable AWS SQS message queue integration.
+        Record SQS configuration (config only; use ``cello.messaging`` for the runtime).
 
         Args:
             config: SqsConfig instance
@@ -1353,10 +1368,10 @@ class App:
 
     def enable_event_sourcing(self, config=None):
         """
-        Enable event sourcing. Config: EventSourcingConfig or None for defaults.
+        Record event-sourcing configuration (config only).
 
-        Configures the event sourcing subsystem with storage backend,
-        snapshot support, and event retention settings.
+        NOTE: event stores, aggregates, and snapshots are provided by the
+        ``cello.eventsourcing`` module; this call records config.
 
         Args:
             config: EventSourcingConfig instance or None for defaults.
@@ -1381,7 +1396,9 @@ class App:
 
     def enable_cqrs(self, config=None):
         """
-        Enable CQRS pattern. Config: CqrsConfig or None for defaults.
+        Record CQRS configuration (config only).
+
+        NOTE: the runtime is provided by the ``cello.cqrs`` module; this call records config.
 
         Configures the CQRS subsystem with event synchronization,
         command/query timeouts, and retry settings.
@@ -1408,7 +1425,9 @@ class App:
 
     def enable_saga(self, config=None):
         """
-        Enable saga orchestration. Config: SagaConfig or None for defaults.
+        Record SAGA configuration (config only).
+
+        NOTE: the runtime is provided by the ``cello.saga`` module; this call records config.
 
         Configures the saga orchestration subsystem with retry behaviour,
         timeouts, and logging settings.
