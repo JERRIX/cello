@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Middleware System Demo for Cello v1.0.1.
+Middleware System Demo for Cello v1.3.0.
 
 This example demonstrates the middleware capabilities including:
 - Built-in middleware (CORS, logging, compression)
@@ -52,7 +52,7 @@ def home(request):
     """Home endpoint showing middleware information."""
     return {
         "message": "Cello Middleware Demo",
-        "version": "1.0.1",
+        "version": "1.3.0",
         "enabled_middleware": [
             "CORS - Cross-Origin Resource Sharing",
             "Logging - Request/response logging",
@@ -245,7 +245,7 @@ def custom_headers(request):
     response.set_header("X-Custom-Header", "custom-value")
     response.set_header("X-Request-ID", "req-12345")
     response.set_header("X-Response-Time", "10ms")
-    response.set_header("X-Powered-By", "Cello/1.0.1")
+    response.set_header("X-Powered-By", "Cello/1.3.0")
     
     return response
 

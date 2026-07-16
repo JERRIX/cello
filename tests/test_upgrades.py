@@ -1,4 +1,4 @@
-"""Regression tests for the three-pillar feature upgrades (v1.4.0):
+"""Regression tests for the three-pillar feature upgrades (v1.3.0):
 
 * Speed      — cache HIT serves a gzip-compressed body (was uncompressed).
 * Security   — full security headers (CSP, Permissions-Policy, COEP/COOP/CORP)

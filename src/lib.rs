@@ -802,7 +802,7 @@ impl Cello {
         version: Option<String>,
     ) -> PyResult<()> {
         let title = title.unwrap_or_else(|| "Cello API".to_string());
-        let version = version.unwrap_or_else(|| "1.0.1".to_string());
+        let version = version.unwrap_or_else(|| "1.3.0".to_string());
 
         // Store title and version for later use
         let title_clone = title.clone();
@@ -2422,7 +2422,7 @@ fn _cello(_py: Python<'_>, m: &PyModule) -> PyResult<()> {
     m.add_class::<http_client::PyAsyncClient>()?;
     m.add_class::<http_client::PyHttpResponse>()?;
 
-    // v1.4.0 - Native async data layer (real Postgres pool + Redis client)
+    // v1.3.0 - Native async data layer (real Postgres pool + Redis client)
     m.add_class::<db::PyDatabase>()?;
     m.add_class::<db::PyTransaction>()?;
     m.add_class::<db::PyRedis>()?;

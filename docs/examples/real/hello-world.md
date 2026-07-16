@@ -41,7 +41,7 @@ app = App()
 def home(request):
     return {
         "message": "Welcome to Cello!",
-        "version": "1.0.1",
+        "version": "1.3.0",
         "docs": "/docs",
     }
 

@@ -15,17 +15,18 @@ tags:
 
 ## :material-new-box: Latest Release — v1.3.0
 
-!!! success "Cello v1.3.0 — Async Rework, Security Hardening & DoS Protection (July 2026)"
+!!! success "Cello v1.3.0 — Async Rework, Native Data Layer, Plugin Audit & Three-Pillar Upgrades (July 2026)"
 
-    A bug-fix and hardening release that also reworks how async handlers are driven.
+    A large release built around Cello's three pillars — **Speed, Simplicity, Security**.
 
     **Highlights:**
 
-    - :material-sync: **Persistent asyncio loop** — `async def` handlers run on one long-lived loop (loop-bound resources survive; GIL released during I/O), replacing the fresh-`asyncio.run()`-per-request model
-    - :material-shield-lock: **Security** — CSRF Origin bypass fixed, skip-path prefix bypass removed, CORS `Vary: Origin`, timing-safe BasicAuth, SSE injection blocked
-    - :material-database-lock: **DoS protection** — body size limits (`App.set_limits()`) and header/body/handler timeouts (`App.set_timeouts()`)
-    - :material-numeric: **Correctness** — large ints no longer corrupted, DELETE bodies read, Range/query-decode fixes
-    - :material-arrow-up: **Upgrade from v1.2.x** — additive API (`set_limits`/`set_timeouts`, `enable_csrf` args); async apps relying on a fresh loop per request should review the migration note
+    - :material-sync: **Persistent asyncio loop** — `async def` handlers run on one long-lived loop (loop-bound resources survive; GIL released during I/O)
+    - :material-database: **Native data layer + ORM** — real Postgres pool & async Redis client (incl. `rediss://` TLS) plus a built-in async ORM (replaces the old mock layer)
+    - :material-check-decagram: **Full `enable_*` plugin audit** — health-check/GraphQL/Prometheus 404s, BasicAuth challenge, JWT `iat`, security-headers config, and a timeout panic all fixed
+    - :material-tune: **Three-pillar upgrades** — full security headers (CSP, Permissions-Policy, cross-origin isolation), gzip-compressed cache HITs, declarative `body=` request validation
+    - :material-shield-lock: **Security & DoS hardening** — CSRF/skip-path/CORS/BasicAuth/SSE fixes, body-size limits & header/body/handler timeouts
+    - :material-arrow-up: **Upgrade from v1.2.x** — additive API; async apps relying on a fresh loop per request should review the migration note
 
     [:octicons-arrow-right-24: Full v1.3.0 Release Notes](v1.3.0.md){ .md-button .md-button--primary }
     [:octicons-arrow-right-24: Migration Guide](migration.md){ .md-button }
@@ -37,7 +38,7 @@ tags:
 ```mermaid
 timeline
     title Cello Framework Releases
-    2026-07 : v1.3.0 - Async Rework, Security Hardening & DoS Protection
+    2026-07 : v1.3.0 - Async Rework, Native Data Layer, Plugin Audit & Three-Pillar Upgrades
     2026-06 : v1.2.4 - Critical Fix: async def Handlers
             : v1.2.3 - Full Middleware Python API & Docs Fixes
             : v1.2.2 - Security & Bug Fixes (CSRF, skip_path, rate limiter)
@@ -62,11 +63,11 @@ timeline
 
 <div class="grid cards" markdown>
 
--   :material-sync:{ .lg .middle } **v1.3.0** — Async Rework & Hardening
+-   :material-sync:{ .lg .middle } **v1.3.0** — Async Rework, Data Layer & Upgrades
 
     ---
 
-    Persistent asyncio loop, CSRF/skip-path/CORS/SSE security fixes, body-size limits & timeouts, integer/Range/query correctness.
+    Persistent asyncio loop, native data layer + ORM, full plugin audit, three-pillar upgrades (full security headers, compressed cache, `body=` validation), and DoS hardening.
 
     :material-calendar: July 2026
 

@@ -130,7 +130,7 @@ from cello._cello import (
     RedisConfig,
 )
 
-# v1.4.0 - Native async data layer (real Postgres pool + Redis client)
+# v1.3.0 - Native async data layer (real Postgres pool + Redis client)
 from cello._cello import (
     Database,
     Transaction,
@@ -987,7 +987,7 @@ class App:
         """
         self._app.invalidate_cache(tags)
 
-    def enable_openapi(self, title: str = "Cello API", version: str = "1.0.1"):
+    def enable_openapi(self, title: str = "Cello API", version: str = "1.3.0"):
         """
         Enable OpenAPI documentation endpoints.
 
@@ -998,7 +998,7 @@ class App:
 
         Args:
             title: API title (default: "Cello API")
-            version: API version (default: "1.0.1")
+            version: API version (default: "1.3.0")
         """
         # Store for closure
         api_title = title

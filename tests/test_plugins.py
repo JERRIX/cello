@@ -8,7 +8,7 @@ app — the real functionality lives in the ``cello.grpc`` / ``cello.messaging``
 ``cello.cqrs`` / ``cello.saga`` / ``cello.eventsourcing`` Python modules — so we
 only assert that enabling them does not break the server.
 
-Regression coverage for bugs fixed in v1.4.0:
+Regression coverage for bugs fixed in v1.3.0:
   * health checks / GraphQL 404 (fast-404 ran before the middleware chain)
   * BasicAuth 401 missing ``WWW-Authenticate``
   * JWT rejecting a token without ``iat``

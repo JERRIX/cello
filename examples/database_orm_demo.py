@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Real Database & Redis + ORM demo for Cello (v1.4.0).
+Real Database & Redis + ORM demo for Cello (v1.3.0).
 
 Unlike the old mock demo, this talks to a **real** PostgreSQL database and a
 **real** Redis server through Cello's native pools (deadpool-postgres + the

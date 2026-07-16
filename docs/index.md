@@ -38,7 +38,7 @@ hide:
 
 <div class="hero-badges">
   <code class="badge-version">v1.3.0</code>
-  <code class="badge-tests">441 tests passing</code>
+  <code class="badge-tests">464 tests passing</code>
   <code class="badge-license">MIT License</code>
   <code class="badge-python">Python 3.12+</code>
 </div>
@@ -364,17 +364,19 @@ Everything below is built in and runs on the Rust hot path:
 
 <div class="whats-new-box" markdown>
 
-!!! tip "v1.3.0 — Async Rework, Security Hardening & DoS Protection"
+!!! tip "v1.3.0 — Async Rework, Native Data Layer, Plugin Audit & Three-Pillar Upgrades"
 
-    Cello v1.3.0 is a bug-fix and hardening release that also reworks how async handlers run.
+    A large release built around Cello's three pillars — **Speed, Simplicity, Security**.
 
-    - :material-sync: **Persistent asyncio loop** — `async def` handlers run on one long-lived event loop, so loop-bound resources (aiohttp/asyncpg pools, `asyncio.Lock`) survive across requests and the GIL is released during I/O instead of serializing every request.
+    - :material-sync: **Persistent asyncio loop** — `async def` handlers run on one long-lived event loop, so loop-bound resources (aiohttp/asyncpg pools, `asyncio.Lock`) survive across requests and the GIL is released during I/O.
 
-    - :material-shield-lock: **Security fixes** — CSRF Origin/Referer bypass closed (exact-authority matching), skip-path prefix bypass removed framework-wide, CORS `Vary: Origin`, timing-safe BasicAuth, SSE injection blocked.
+    - :material-database: **Native data layer + ORM** — a real Postgres pool and async Redis client (incl. `rediss://` TLS) plus a built-in async ORM, replacing the old mock layer.
 
-    - :material-database-lock: **DoS protection** — request body size limits (`App.set_limits()`, 413) and header/body/handler timeouts (`App.set_timeouts()`, 408/504).
+    - :material-check-decagram: **Full plugin audit** — every `enable_*` verified end-to-end; fixed health-check/GraphQL/Prometheus 404s, the BasicAuth challenge, JWT `iat`, security-headers config, and a timeout panic.
 
-    - :material-numeric: **Correctness** — large integers no longer corrupted to floats, DELETE bodies read, Range/query-decode fixes.
+    - :material-tune: **Three-pillar upgrades** — full security headers (CSP, Permissions-Policy, cross-origin isolation), gzip-compressed cache HITs, and declarative `body=` request validation (400 on bad input).
+
+    - :material-shield-lock: **Security & DoS hardening** — CSRF/skip-path/CORS/BasicAuth/SSE fixes, request body-size limits and header/body/handler timeouts.
 
     [:material-tag: Full Release Notes](releases/v1.3.0.md){ .md-button .md-button--primary }
     [:material-book-open-variant: Migration Guide](releases/migration.md){ .md-button }

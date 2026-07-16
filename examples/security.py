@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Security Features Example for Cello v1.0.1.
+Security Features Example for Cello v1.3.0.
 
 This example demonstrates security-focused features including:
 - Security headers configuration
@@ -159,7 +159,7 @@ def home(request):
     """Security features overview."""
     response_data = {
         "message": "Cello Security Features Demo",
-        "version": "1.0.1",
+        "version": "1.3.0",
         "features": {
             "jwt_auth": "JWT authentication with configurable algorithms",
             "rate_limiting": "Token bucket and sliding window algorithms",

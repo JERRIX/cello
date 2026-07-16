@@ -1228,7 +1228,7 @@ def test_enable_openapi_default_version():
 
 
 def test_import_v080_data_layer():
-    """Data layer features import (native Database/Redis/Transaction since v1.4.0)."""
+    """Data layer features import (native Database/Redis/Transaction since v1.3.0)."""
     from cello import DatabaseConfig, RedisConfig, Database, Redis, Transaction
     from cello.database import transactional
 
@@ -1395,7 +1395,7 @@ def test_enable_redis_default():
 
 
 # NOTE: The former mock-based Database/Transaction/Redis unit tests were removed
-# in v1.4.0 when the data layer became real (native deadpool-postgres + redis
+# in v1.3.0 when the data layer became real (native deadpool-postgres + redis
 # crate). Live integration coverage now lives in tests/test_native_db.py
 # (auto-skipped when Postgres/Redis are unreachable).
 

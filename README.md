@@ -282,7 +282,7 @@ app.enable_rabbitmq(RabbitMQConfig(url="amqp://localhost:5672"))
 
 @app.get("/")
 def home(request):
-    return {"status": "ok", "version": "1.0.1", "protocols": ["graphql", "grpc", "kafka", "rabbitmq"]}
+    return {"status": "ok", "version": "1.3.0", "protocols": ["graphql", "grpc", "kafka", "rabbitmq"]}
 
 app.run()
 ```

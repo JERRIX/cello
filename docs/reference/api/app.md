@@ -386,14 +386,14 @@ Adds the following endpoints:
 ```python
 app.enable_openapi(
     title="My API",
-    version="1.0.1"
+    version="1.3.0"
 )
 ```
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
 | `title` | `str` | `"Cello API"` | API title |
-| `version` | `str` | `"1.0.1"` | API version |
+| `version` | `str` | `"1.3.0"` | API version |
 
 ---
 

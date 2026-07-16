@@ -1,7 +1,7 @@
 """
 Cello Database & Redis helpers.
 
-Since v1.4.0 the database and Redis integrations are **native and real**: the
+Since v1.3.0 the database and Redis integrations are **native and real**: the
 connection pools live in Rust (``deadpool-postgres`` and the ``redis`` crate) and
 are reached through ``app.database`` / ``request.database`` and ``app.redis`` /
 ``request.redis``. The ``Database``, ``Transaction`` and ``Redis`` types are the

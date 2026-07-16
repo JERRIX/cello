@@ -25,7 +25,7 @@ from cello import App, Response
 app = App()
 app.enable_cors()
 app.enable_logging()
-app.enable_openapi(title="Bookstore API", version="1.0.1")
+app.enable_openapi(title="Bookstore API", version="1.3.0")
 
 # In-memory database
 books = {

@@ -19,10 +19,10 @@ This example demonstrates how to implement three advanced architectural patterns
 ```python
 #!/usr/bin/env python3
 """
-Cello Framework v1.0.1 - Advanced Patterns Demo
+Cello Framework v1.3.0 - Advanced Patterns Demo
 ================================================
 
-Demonstrates the three major architectural patterns introduced in v1.0.1:
+Demonstrates the three major architectural patterns introduced in v1.3.0:
 
   1. Event Sourcing - Store all state changes as a sequence of events
   2. CQRS (Command Query Responsibility Segregation) - Separate read and write models
@@ -86,7 +86,7 @@ from cello.saga import SagaStep, Saga, SagaExecution, SagaOrchestrator, SagaErro
 
 app = App()
 
-# Configure v1.0.1 features
+# Configure v1.3.0 features
 app.enable_event_sourcing(EventSourcingConfig.memory())
 app.enable_cqrs(CqrsConfig(
     enable_event_sync=True,
@@ -623,11 +623,11 @@ def format_timestamp():
 @app.get("/")
 def home(request):
     """
-    Home endpoint showing all v1.0.1 features and available routes.
+    Home endpoint showing all v1.3.0 features and available routes.
     """
     return {
         "framework": "Cello",
-        "version": "1.0.1",
+        "version": "1.3.0",
         "features": {
             "event_sourcing": {
                 "description": "Store all state changes as immutable events",
@@ -993,7 +993,7 @@ async def on_shutdown():
 if __name__ == "__main__":
     print("""
     ================================================================
-    Cello Framework v1.0.1 - Advanced Patterns Demo
+    Cello Framework v1.3.0 - Advanced Patterns Demo
     ================================================================
 
     Features demonstrated:

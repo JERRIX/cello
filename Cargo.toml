@@ -125,7 +125,7 @@ opentelemetry_sdk = { version = "0.21", features = ["rt-tokio", "trace", "metric
 tracing-opentelemetry = "0.22"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
 
-# Database Connection Pooling (native Postgres pool — first-class since v1.4.0)
+# Database Connection Pooling (native Postgres pool — first-class since v1.3.0)
 deadpool = "0.10"
 deadpool-postgres = "0.12"
 tokio-postgres = { version = "0.7", features = [
@@ -134,7 +134,7 @@ tokio-postgres = { version = "0.7", features = [
     "with-serde_json-1",
 ] }
 
-# Native async Redis client (redis crate — first-class since v1.4.0)
+# Native async Redis client (redis crate — first-class since v1.3.0)
 # rustls TLS features enable `rediss://` URLs (matches the project's rustls stack).
 redis = { version = "0.25", features = [
     "tokio-comp",
