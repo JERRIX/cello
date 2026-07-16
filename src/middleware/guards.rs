@@ -1,4 +1,4 @@
-//! Guards middleware for Cello (inspired by Litestar).
+//! Guards middleware for Cello.
 //!
 //! Provides:
 //! - Role-based access control (RBAC)

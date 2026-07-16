@@ -380,7 +380,7 @@
       "Rust-powered performance",
       "Python simplicity",
       "Enterprise-grade security",
-      "170,000+ requests/sec",
+      "135,000+ requests/sec",
     ];
     var pi = 0, ci = 0, deleting = false;
     el.innerHTML = '<span class="typing-text"></span><span class="typing-cursor" style="color:#E65100;animation:cello-blink 0.7s step-end infinite;">|</span>';

@@ -212,15 +212,6 @@ Cello is made possible by the work of these people and projects.
     | [simd-json](https://github.com/simd-lite/simd-json) | SIMD-accelerated JSON parsing |
     | [matchit](https://github.com/ibraheemdev/matchit) | Radix-tree routing |
 
-??? info "Inspiration"
-
-    Cello stands on the shoulders of:
-
-    - [FastAPI](https://fastapi.tiangolo.com/) -- Developer experience and type hints
-    - [Actix-web](https://actix.rs/) -- Rust performance patterns
-    - [Flask](https://flask.palletsprojects.com/) -- Simplicity and blueprints
-    - [Django](https://www.djangoproject.com/) -- Batteries-included philosophy
-
 ---
 
 <div class="grid" markdown>

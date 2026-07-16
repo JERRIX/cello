@@ -1,4 +1,4 @@
-//! Advanced Caching middleware for Cello (inspired by Litestar).
+//! Advanced Caching middleware for Cello.
 //!
 //! Provides:
 //! - Response caching with custom cache keys

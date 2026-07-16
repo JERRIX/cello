@@ -4,12 +4,12 @@ Cello Advanced Features Demo
 This example demonstrates all the new middleware features implemented in Cello v1.0.1:
 
 🎯 Features Demonstrated:
-1. ✅ Dependency Injection (FastAPI-inspired)
-2. ✅ Guards System (Litestar-inspired)
-3. ✅ Prometheus Metrics (Litestar-inspired)
-4. ✅ Global Exception Handling (FastAPI-inspired)
-5. ✅ Advanced Caching (Litestar-inspired)
-6. ✅ DTO System (Litestar-inspired)
+1. ✅ Dependency Injection
+2. ✅ Guards System
+3. ✅ Prometheus Metrics
+4. ✅ Global Exception Handling
+5. ✅ Advanced Caching
+6. ✅ DTO System
 
 Run with:
     python examples/comprehensive_demo.py
@@ -99,7 +99,7 @@ def home(request):
     return {
         "message": "🎸 Cello v1.0.1 - Advanced Features Demo",
         "features": {
-            "dependency_injection": "FastAPI-style DI container",
+            "dependency_injection": "Built-in DI container",
             "guards": "Role-based access control (RBAC)",
             "prometheus": "Production-ready metrics",
             "exception_handling": "Global error handlers",
@@ -140,18 +140,15 @@ def documentation(request):
         "features": {
             "dependency_injection": {
                 "description": "Clean separation of concerns with type-safe DI",
-                "inspired_by": "FastAPI",
                 "scopes": ["Singleton", "Request", "Transient"],
             },
             "guards": {
                 "description": "Role-based and permission-based access control",
-                "inspired_by": "Litestar",
                 "types": ["RoleGuard", "PermissionGuard", "AuthenticatedGuard", "CustomGuard"],
                 "features": ["Composable guards", "Path exclusions", "Priority-based execution"],
             },
             "prometheus": {
                 "description": "Production-ready metrics collection",
-                "inspired_by": "Litestar",
                 "metrics": [
                     "http_requests_total - Request counter",
                     "http_request_duration_seconds - Latency histogram",
@@ -163,7 +160,6 @@ def documentation(request):
             },
             "exception_handling": {
                 "description": "Global exception handlers with custom responses",
-                "inspired_by": "FastAPI",
                 "handlers": [
                     "ValidationErrorHandler",
                     "AuthenticationErrorHandler",
@@ -175,7 +171,6 @@ def documentation(request):
             },
             "caching": {
                 "description": "Advanced HTTP caching with ETags and conditional requests",
-                "inspired_by": "Litestar",
                 "features": [
                     "Response caching with custom keys",
                     "ETag generation and validation",
@@ -187,7 +182,6 @@ def documentation(request):
             },
             "dtos": {
                 "description": "Data Transfer Objects with field filtering and validation",
-                "inspired_by": "Litestar",
                 "features": [
                     "Field inclusion/exclusion",
                     "Field renaming/aliasing",
@@ -561,12 +555,12 @@ if __name__ == "__main__":
     print("🎸 Cello Framework - Advanced Features Comprehensive Demo")
     print("=" * 80)
     print("\n✨ New Features Demonstrated:")
-    print("   1. ✅ Dependency Injection (FastAPI-inspired)")
-    print("   2. ✅ Guards System/RBAC (Litestar-inspired)")
-    print("   3. ✅ Prometheus Metrics (Litestar-inspired)")
-    print("   4. ✅ Global Exception Handling (FastAPI-inspired)")
-    print("   5. ✅ Advanced Caching (Litestar-inspired)")
-    print("   6. ✅ DTO System (Litestar-inspired)")
+    print("   1. ✅ Dependency Injection")
+    print("   2. ✅ Guards System/RBAC")
+    print("   3. ✅ Prometheus Metrics")
+    print("   4. ✅ Global Exception Handling")
+    print("   5. ✅ Advanced Caching")
+    print("   6. ✅ DTO System")
     print("\n📊 Endpoints:")
     print("   - http://localhost:8000/ - Home page")
     print("   - http://localhost:8000/docs - Full API documentation")

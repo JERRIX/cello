@@ -226,7 +226,7 @@ timeline
 
     ---
 
-    WebSocket support, Server-Sent Events, multipart form handling, and Flask-inspired blueprints.
+    WebSocket support, Server-Sent Events, multipart form handling, and modular blueprints.
 
     :material-calendar: June 2025
 

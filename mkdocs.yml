@@ -279,6 +279,7 @@ nav:
       - Request: reference/api/request.md
       - Response: reference/api/response.md
       - Blueprint: reference/api/blueprint.md
+      - Plugins (enable_*): reference/api/plugins.md
       - Middleware: reference/api/middleware.md
       - Guards: reference/api/guards.md
       - Context: reference/api/context.md

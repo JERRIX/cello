@@ -42,18 +42,19 @@ Cello is an **enterprise-grade Python web framework** that combines Python's dev
 
 ## ⚡ Performance
 
-Cello is the **fastest Python web framework** — benchmarked with `wrk` on the same machine, same worker count, same settings.
+Cello sustains **C-level throughput**. The figures below are the latest measured
+run (release build, `wrk -t12 -c400 -d10s`, 4 workers / 5 processes) on an
+8-core WSL2 box where `wrk` and the server share the same cores — dedicated
+hardware, or running `wrk` on a separate machine, scales higher.
 
-### Benchmark Results (4 workers, 5 processes each, wrk -t12 -c400 -d10s)
+### Benchmark Results (release build, 4 workers, wrk -t12 -c400 -d10s)
 
-| Framework | Server | Req/sec | Avg Latency | p99 Latency | Relative |
-|-----------|--------|---------|-------------|-------------|----------|
-| **Cello** | **Built-in (Rust/Tokio)** | **170,000+** | **2.76ms** | **15.34ms** | **1.0x (fastest)** |
-| BlackSheep + Granian | Granian (Rust) | ~92,000 | 4.31ms | 12.63ms | 1.9x slower |
-| FastAPI + Granian | Granian (Rust) | ~55,000 | 7.14ms | 16.86ms | 3.1x slower |
-| Robyn | Built-in (Rust) | ~29,000 | 14.21ms | 37.91ms | 5.9x slower |
+| Endpoint | Req/sec | Avg Latency |
+|----------|--------:|------------:|
+| `GET /` (simple JSON) | **~138,000** | 3.3–4.7 ms |
+| `GET /json` (nested JSON) | **~134,000** | 3.3–3.8 ms |
 
-> **How to reproduce**: See [`benchmarks/compare/`](benchmarks/compare/) for the automated comparison runner. All frameworks use the same JSON endpoint, same process count, and same `wrk` settings for a fair comparison.
+> **How to reproduce**: See [`benchmarks/`](benchmarks/) for the benchmark runner using the same JSON endpoint, process count, and `wrk` settings.
 
 ---
 
@@ -117,7 +118,7 @@ python app.py
 | 🛤️ **Radix Routing** | Ultra-fast route matching with `matchit` |
 | 🔄 **Async/Sync** | Support for both `async def` and regular `def` handlers |
 | 🛡️ **Middleware** | Built-in CORS, logging, compression, rate limiting |
-| 📐 **Blueprints** | Flask-like route grouping and modular apps |
+| 📐 **Blueprints** | Modular route grouping for larger apps |
 | 🌐 **WebSocket** | Real-time bidirectional communication |
 | 📡 **SSE** | Server-Sent Events for streaming |
 | 📁 **Multipart** | File uploads and form data handling |
@@ -620,7 +621,7 @@ cargo fmt
 
 ### v1.0.0 — Production-Ready Stable Release (Feb 2026)
 
-- **170,000+ req/s** sustained throughput (fastest Python web framework)
+- **170,000+ req/s** sustained throughput
 - Handler metadata caching, lazy query parsing, zero-copy response building
 - TCP_NODELAY, HTTP/1.1 keep-alive and pipeline flush optimization
 - Pre-allocated headers, fast-path skip for empty middleware/guards

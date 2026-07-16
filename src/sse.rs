@@ -243,7 +243,12 @@ mod tests {
     fn test_sse_field_injection_is_stripped() {
         // Regression: an attacker-controlled `id`/`event` containing newlines must
         // not be able to inject additional SSE directives into the stream.
-        let event = SseEvent::new("payload", Some("evt\ndata: injected"), Some("1\nevent: x"), None);
+        let event = SseEvent::new(
+            "payload",
+            Some("evt\ndata: injected"),
+            Some("1\nevent: x"),
+            None,
+        );
         let sse_str = event.to_sse_string();
         assert!(sse_str.contains("id: 1event: x\n"));
         assert!(sse_str.contains("event: evtdata: injected\n"));

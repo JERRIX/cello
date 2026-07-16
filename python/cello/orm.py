@@ -1,10 +1,10 @@
 """
-Cello ORM — a small, Django-inspired async ORM over the native Postgres pool.
+Cello ORM — a small async ORM over the native Postgres pool.
 
 This is a *real, working* ORM built on ``app.database`` (deadpool-postgres). It
 deliberately covers the common 80%: typed models, a chainable async QuerySet,
-``create_table``, and ``ForeignKey``. It is **not** full Django parity — there
-are no migrations diffing, no lazy reverse relations, no ``select_related`` join
+``create_table``, and ``ForeignKey``. It is intentionally lightweight — there
+are no migration diffing, no lazy reverse relations, no ``select_related`` join
 planner, and no signals/admin. What is here is tested end-to-end against real
 Postgres; where the line falls is documented in the class docstrings.
 

@@ -96,9 +96,9 @@ Open an issue on [GitHub](https://github.com/jagadeesh32/cello/issues) with:
 
 Cello is in active development. Check the current version and release notes before deploying to production. Evaluate the framework against your specific requirements.
 
-### How does Cello compare to FastAPI / Flask?
+### What makes Cello fast?
 
-Cello's Rust core handles HTTP parsing, routing, and JSON serialization, which are the most performance-critical parts of a web server. Python is used only for business logic. This architecture provides significantly higher throughput than pure-Python frameworks.
+Cello's Rust core handles HTTP parsing, routing, and JSON serialization, which are the most performance-critical parts of a web server. Python is used only for business logic. Moving the hot path into native Rust is what delivers Cello's throughput.
 
 ### Where can I find examples?
 

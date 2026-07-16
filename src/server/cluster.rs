@@ -65,7 +65,9 @@ impl ClusterConfig {
         }
         #[cfg(not(target_os = "linux"))]
         {
-            eprintln!("Warning: CPU affinity is only supported on Linux. Ignoring cpu_affinity setting.");
+            eprintln!(
+                "Warning: CPU affinity is only supported on Linux. Ignoring cpu_affinity setting."
+            );
             self.cpu_affinity = false;
         }
         self

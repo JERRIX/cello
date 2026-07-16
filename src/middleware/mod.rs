@@ -263,6 +263,15 @@ pub trait Middleware: Send + Sync {
     fn skip_paths(&self) -> &[String] {
         &[]
     }
+
+    /// Whether this middleware directly serves the given path even when no
+    /// route matched (e.g. health checks, metrics). When `true`, the router's
+    /// fast-404 path gives this middleware's `before` hook a chance to respond
+    /// instead of returning 404. See `MiddlewareChain::execute_before_unrouted`.
+    #[inline]
+    fn serves_unrouted(&self, _method: &str, _path: &str) -> bool {
+        false
+    }
 }
 
 /// Trait for implementing asynchronous middleware.
@@ -300,6 +309,15 @@ pub trait AsyncMiddleware: Send + Sync {
     #[inline]
     fn name(&self) -> &str {
         "unnamed_async"
+    }
+
+    /// Whether this async middleware directly serves the given path even when
+    /// no route matched (e.g. a GraphQL endpoint/playground). When `true`, the
+    /// router's fast-404 path gives this middleware's `before_async` hook a
+    /// chance to respond. See `MiddlewareChain::execute_before_async_unrouted`.
+    #[inline]
+    fn serves_unrouted(&self, _method: &str, _path: &str) -> bool {
+        false
     }
 }
 
@@ -383,6 +401,62 @@ impl MiddlewareChain {
                 continue;
             }
             match entry.middleware.after(request, response)? {
+                MiddlewareAction::Continue => continue,
+                action @ MiddlewareAction::Stop(_) => return Ok(action),
+            }
+        }
+        Ok(MiddlewareAction::Continue)
+    }
+
+    /// Run only sync middleware that claim the (unrouted) path via
+    /// `serves_unrouted`. Used on a route miss so path-owning middleware such as
+    /// health checks can serve their endpoints before a 404 is returned.
+    /// Returns `Stop(response)` if a middleware served the request.
+    #[inline]
+    pub fn execute_before_unrouted(&self, request: &mut Request) -> MiddlewareResult {
+        let middlewares = self.sync_middlewares.read();
+        for entry in middlewares.iter() {
+            if !entry
+                .middleware
+                .serves_unrouted(&request.method, &request.path)
+            {
+                continue;
+            }
+            match entry.middleware.before(request)? {
+                MiddlewareAction::Continue => continue,
+                action @ MiddlewareAction::Stop(_) => return Ok(action),
+            }
+        }
+        Ok(MiddlewareAction::Continue)
+    }
+
+    /// Whether any registered middleware (sync or async) claims the given
+    /// unrouted path. Lets the server skip building a request on a genuine 404.
+    #[inline]
+    pub fn has_unrouted(&self, method: &str, path: &str) -> bool {
+        self.sync_middlewares
+            .read()
+            .iter()
+            .any(|e| e.middleware.serves_unrouted(method, path))
+            || self
+                .async_middlewares
+                .read()
+                .iter()
+                .any(|e| e.middleware.serves_unrouted(method, path))
+    }
+
+    /// Async counterpart of `execute_before_unrouted` (e.g. a GraphQL endpoint).
+    pub async fn execute_before_async_unrouted(&self, request: &mut Request) -> MiddlewareResult {
+        let entries: Vec<Arc<dyn AsyncMiddleware>> = {
+            let middlewares = self.async_middlewares.read();
+            middlewares
+                .iter()
+                .filter(|e| e.middleware.serves_unrouted(&request.method, &request.path))
+                .map(|e| e.middleware.clone())
+                .collect()
+        };
+        for middleware in &entries {
+            match middleware.before_async(request).await? {
                 MiddlewareAction::Continue => continue,
                 action @ MiddlewareAction::Stop(_) => return Ok(action),
             }

@@ -1,6 +1,6 @@
 //! Background Tasks for Cello Framework
 //!
-//! This module provides FastAPI-style background task execution.
+//! This module provides post-response background task execution.
 //! Tasks are executed after the response is sent to the client.
 
 use parking_lot::Mutex;

@@ -89,7 +89,7 @@ Expect near-linear scaling:
 | 4       | 5         | ~160,000-175,000  |
 | 8       | 9         | ~200,000+         |
 
-**Reference benchmark**: 170,000+ req/s with 4 workers (5 processes) using `wrk -t12 -c400 -d10s`.
+**Reference benchmark**: ~135,000 req/s with 4 workers (5 processes) using `wrk -t12 -c400 -d10s` on an 8-core WSL2 box (client + server sharing cores); dedicated hardware scales higher.
 
 ### Platform Notes
 
@@ -98,45 +98,38 @@ Expect near-linear scaling:
 - **macOS**: Good performance on Apple Silicon. Use `wrk` for accurate results.
 - **Best practice**: Run wrk on a separate machine to avoid client/server CPU contention.
 
-## Comparison with Other Frameworks
-
-### Benchmark Results (4 workers, 5 processes each, wrk 12t/400c/10s)
-
-| Framework | Server | Requests/sec | Avg Latency | Relative |
-|-----------|--------|-------------|-------------|----------|
-| **Cello** | Built-in (Rust/Tokio) | **170,000+** | **2.8ms** | **1.0x (fastest)** |
-| BlackSheep | Granian (Rust) | ~92,000 | 4.3ms | 1.9x slower |
-| FastAPI | Granian (Rust) | ~55,000 | 7.1ms | 3.1x slower |
-| Robyn | Built-in (Rust) | ~29,000 | 14.2ms | 5.9x slower |
-
 ### How to Reproduce
 
-For fair comparison, use the same machine, worker count, and wrk settings:
+Use the same machine, worker count, and wrk settings for repeatable results:
 
 ```bash
 # Cello (4 workers)
 python benchmarks/quick_bench.py --server --workers 4
 wrk -t12 -c400 -d10s http://127.0.0.1:8080/
-
-# Robyn (4 workers)
-python app.py --workers 4
-wrk -t12 -c400 -d10s http://127.0.0.1:8080/
-
-# BlackSheep + Granian (4 workers)
-granian --interface asgi --workers 4 --host 127.0.0.1 --port 8000 app:app
-wrk -t12 -c400 -d10s http://127.0.0.1:8000/
-
-# FastAPI + Granian (4 workers)
-granian --interface asgi --workers 4 --host 127.0.0.1 --port 8000 app:app
-wrk -t12 -c400 -d10s http://127.0.0.1:8000/
 ```
 
-### Automated Comparison
+## Local wrk Run (2026-07-16)
 
-Use the automated benchmark runner for reproducible results:
+Measured with **`wrk -t12 -c400 -d10s`** (warmed up, 3 runs per endpoint)
+against a **release build** (`maturin develop --release`) on a **WSL2 dev
+container, 8 cores shared between `wrk` and the server**. Because `wrk`'s 12
+threads compete with the server processes for the same 8 cores, these land below
+the dedicated-hardware reference above — but they confirm real, sustained
+six-figure throughput with no regression.
 
-```bash
-cd benchmarks/compare
-pip install -r requirements.txt
-python run_benchmarks.py --workers 4
-```
+| Workers (procs) | Endpoint | Req/sec (3-run range) | Avg latency |
+|-----------------|----------|----------------------:|------------:|
+| 4 (5) | `GET /` | **~138,000** (128k–138k) | 3.3–4.7 ms |
+| 4 (5) | `GET /json` | **~134,000** (113k–141k) | 3.3–3.8 ms |
+| 8 (9) | `GET /` | **~122,000** | 5.4 ms |
+| 8 (9) | `GET /json` | ~80,000* | 5.8 ms |
+
+\* At 8 workers the 9 server processes + `wrk`'s 12 threads oversubscribe the
+8-core box, so `/json` becomes CPU-starved and noisy; the **4-worker** numbers
+are the clean, representative measurement on this hardware.
+
+> **Important:** a pure-Python load generator (e.g. `quick_bench.py`) is
+> GIL-bound and opens a fresh connection per request, so it measures the
+> *client*, not the server — it will report a small fraction of these numbers.
+> Always benchmark with `wrk` (ideally from a **separate machine**, per the
+> platform notes above) to see the server's real throughput.

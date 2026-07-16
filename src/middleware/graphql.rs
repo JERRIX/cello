@@ -566,6 +566,12 @@ impl AsyncMiddleware for GraphQLMiddleware {
     fn name(&self) -> &str {
         "graphql"
     }
+
+    fn serves_unrouted(&self, _method: &str, path: &str) -> bool {
+        // The GraphQL endpoint/playground is not a registered route; claim it so
+        // the router's fast-404 path lets `before_async` serve it.
+        path == self.config.path
+    }
 }
 
 #[cfg(test)]

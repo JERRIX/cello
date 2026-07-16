@@ -15,8 +15,7 @@ pub fn parse_json(input: &str) -> Result<serde_json::Value, String> {
     {
         // simd-json requires mutable input, so we need to copy
         let mut input_bytes = input.as_bytes().to_vec();
-        simd_json::serde::from_slice(&mut input_bytes)
-            .map_err(|e| format!("JSON parse error: {e}"))
+        simd_json::serde::from_slice(&mut input_bytes).map_err(|e| format!("JSON parse error: {e}"))
     }
     #[cfg(not(any(target_arch = "x86", target_arch = "x86_64", target_arch = "aarch64")))]
     {

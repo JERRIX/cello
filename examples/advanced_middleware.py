@@ -1,8 +1,7 @@
 """
 Advanced Middleware Example for Cello Framework
 
-This example demonstrates the new middleware features inspired by
-Robyn, Litestar, and FastAPI:
+This example demonstrates Cello's advanced middleware features:
 
 1. Dependency Injection
 2. Guards (RBAC)
@@ -238,12 +237,12 @@ def documentation(request):
         "version": "1.0.1",
         "features": {
             "dependency_injection": {
-                "description": "FastAPI-style dependency injection",
+                "description": "Decorator-based dependency injection",
                 "scopes": ["Singleton", "Request", "Transient"],
                 "features": ["Caching", "Override for testing", "Hierarchical resolution"],
             },
             "guards": {
-                "description": "Litestar-style permission guards",
+                "description": "Composable permission guards",
                 "types": [
                     "RoleGuard - Role-based access control",
                     "PermissionGuard - Permission-based access",
@@ -291,8 +290,8 @@ if __name__ == "__main__":
     print("Cello Framework - Advanced Middleware Example")
     print("=" * 70)
     print("\n✨ New Features Demonstrated:")
-    print("   1. Dependency Injection (FastAPI-inspired)")
-    print("   2. Guards/RBAC (Litestar-inspired)")
+    print("   1. Dependency Injection")
+    print("   2. Guards/RBAC")
     print("   3. Prometheus Metrics")
     print("\n📊 Endpoints:")
     print("   - http://localhost:8000/ - Home page")

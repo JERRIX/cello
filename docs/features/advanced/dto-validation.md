@@ -5,7 +5,7 @@ description: Data Transfer Objects and validation in Cello Framework
 
 # DTOs & Validation
 
-Cello provides a Data Transfer Object (DTO) system inspired by Litestar for controlling which fields are exposed in API inputs and outputs. Combined with optional Pydantic integration, you get full request validation with automatic error responses.
+Cello provides a Data Transfer Object (DTO) system for controlling which fields are exposed in API inputs and outputs. Combined with optional Pydantic integration, you get full request validation with automatic error responses.
 
 ---
 

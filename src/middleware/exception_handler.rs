@@ -1,4 +1,4 @@
-//! Global Exception Handling middleware for Cello (inspired by FastAPI).
+//! Global Exception Handling middleware for Cello.
 //!
 //! Provides:
 //! - Global exception handlers

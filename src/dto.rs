@@ -1,4 +1,4 @@
-//! Data Transfer Objects (DTO) system for Cello (inspired by Litestar).
+//! Data Transfer Objects (DTO) system for Cello.
 //!
 //! Provides:
 //! - Field filtering (include/exclude)

@@ -456,6 +456,13 @@ impl Middleware for HealthCheckMiddleware {
     fn name(&self) -> &str {
         "health_check"
     }
+
+    fn serves_unrouted(&self, _method: &str, path: &str) -> bool {
+        // Health endpoints are not registered routes; claim them so the router's
+        // fast-404 path lets `before` serve `/health`, `/health/live`, etc.
+        let base = &self.config.base_path;
+        path == base || path.starts_with(&format!("{base}/"))
+    }
 }
 
 /// Built-in health checks.

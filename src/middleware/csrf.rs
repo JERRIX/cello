@@ -333,7 +333,10 @@ impl CsrfMiddleware {
 
     /// Check if path should skip CSRF.
     fn should_skip(&self, path: &str) -> bool {
-        self.config.skip_paths.iter().any(|p| path_matches_skip(path, p))
+        self.config
+            .skip_paths
+            .iter()
+            .any(|p| path_matches_skip(path, p))
     }
 
     /// Extract token from cookie.

@@ -1,6 +1,6 @@
 //! Template Engine for Cello Framework
 //!
-//! This module provides Django/Jinja2-style template rendering support.
+//! This module provides Jinja2-compatible template rendering support.
 
 use parking_lot::RwLock;
 use pyo3::prelude::*;

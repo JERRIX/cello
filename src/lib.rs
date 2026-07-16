@@ -71,7 +71,6 @@ use server::Server;
 use sse::{SseEvent, SseStream};
 use websocket::{WebSocket, WebSocketMessage, WebSocketRegistry};
 
-
 /// The main Cello application class exposed to Python.
 ///
 /// This class manages routes, middleware, and starts the HTTP server.
@@ -352,15 +351,22 @@ impl Cello {
 
     /// Enable JWT authentication middleware.
     #[pyo3(signature = (config, skip_paths=None))]
-    pub fn enable_jwt(&mut self, config: PyJwtConfig, skip_paths: Option<Vec<String>>) -> PyResult<()> {
+    pub fn enable_jwt(
+        &mut self,
+        config: PyJwtConfig,
+        skip_paths: Option<Vec<String>>,
+    ) -> PyResult<()> {
         use jsonwebtoken::Algorithm;
         let alg = match config.algorithm.as_str() {
             "HS256" => Algorithm::HS256,
             "HS384" => Algorithm::HS384,
             "HS512" => Algorithm::HS512,
-            _ => return Err(pyo3::exceptions::PyValueError::new_err(
-                format!("Unsupported JWT algorithm: {}", config.algorithm)
-            )),
+            _ => {
+                return Err(pyo3::exceptions::PyValueError::new_err(format!(
+                    "Unsupported JWT algorithm: {}",
+                    config.algorithm
+                )))
+            }
         };
         let jwt_config = middleware::auth::JwtConfig {
             secret: config.secret.into_bytes(),
@@ -395,14 +401,33 @@ impl Cello {
     }
 
     /// Enable security headers middleware.
-    #[pyo3(signature = (strict=false))]
-    pub fn enable_security_headers(&mut self, strict: bool) {
-        let mw = if strict {
-            middleware::security::SecurityHeadersMiddleware::strict()
-        } else {
-            middleware::security::SecurityHeadersMiddleware::new()
+    ///
+    /// Accepts either:
+    /// - nothing / `None` — sensible defaults,
+    /// - a `bool` — `True` selects the strict preset (CSP, 2y HSTS preload, …),
+    /// - a `SecurityHeadersConfig` — explicit header configuration.
+    #[pyo3(signature = (config=None))]
+    pub fn enable_security_headers(&mut self, config: Option<&PyAny>) -> PyResult<()> {
+        let mw = match config {
+            None => middleware::security::SecurityHeadersMiddleware::new(),
+            Some(obj) => {
+                if let Ok(cfg) = obj.extract::<PySecurityHeadersConfig>() {
+                    build_security_headers_mw(&cfg)
+                } else if let Ok(strict) = obj.extract::<bool>() {
+                    if strict {
+                        middleware::security::SecurityHeadersMiddleware::strict()
+                    } else {
+                        middleware::security::SecurityHeadersMiddleware::new()
+                    }
+                } else {
+                    return Err(pyo3::exceptions::PyTypeError::new_err(
+                        "enable_security_headers expects a bool or SecurityHeadersConfig",
+                    ));
+                }
+            }
         };
         self.middleware.add(mw);
+        Ok(())
     }
 
     /// Enable CSRF protection middleware.
@@ -929,8 +954,13 @@ def openapi_handler(request):
                     let mut config = server::ServerConfig::new(&host_owned, port);
                     config.workers = workers.unwrap_or(0);
                     config.max_body_size = max_body_size;
-                    let secs_to_opt =
-                        |s: u64| if s == 0 { None } else { Some(std::time::Duration::from_secs(s)) };
+                    let secs_to_opt = |s: u64| {
+                        if s == 0 {
+                            None
+                        } else {
+                            Some(std::time::Duration::from_secs(s))
+                        }
+                    };
                     config.read_body_timeout = secs_to_opt(read_body_timeout_secs);
                     config.read_header_timeout = secs_to_opt(read_header_timeout_secs);
                     config.handler_timeout = secs_to_opt(handler_timeout_secs);
@@ -1425,6 +1455,64 @@ impl PySecurityHeadersConfig {
             false,
         )
     }
+}
+
+/// Build a native `SecurityHeadersMiddleware` from the Python-facing config,
+/// mapping string/optional fields onto the Rust enums. Used by
+/// `App::enable_security_headers` when a `SecurityHeadersConfig` is passed.
+fn build_security_headers_mw(
+    cfg: &PySecurityHeadersConfig,
+) -> middleware::security::SecurityHeadersMiddleware {
+    use middleware::security::{
+        HstsConfig, ReferrerPolicy, SecurityHeadersMiddleware, XFrameOptions,
+    };
+
+    let mut mw = SecurityHeadersMiddleware::new();
+
+    mw.x_frame_options = cfg
+        .x_frame_options
+        .as_ref()
+        .map(|v| match v.to_uppercase().as_str() {
+            "DENY" => XFrameOptions::Deny,
+            "SAMEORIGIN" => XFrameOptions::SameOrigin,
+            other => XFrameOptions::AllowFrom(other.to_string()),
+        });
+
+    mw.x_content_type_options = cfg.x_content_type_options;
+
+    // The middleware models X-XSS-Protection as an on/off toggle; treat an
+    // empty or "0" value as disabled.
+    mw.x_xss_protection = cfg
+        .x_xss_protection
+        .as_ref()
+        .map(|s| !s.is_empty() && s != "0")
+        .unwrap_or(false);
+
+    mw.referrer_policy = cfg.referrer_policy.as_ref().map(|v| match v.as_str() {
+        "no-referrer" => ReferrerPolicy::NoReferrer,
+        "no-referrer-when-downgrade" => ReferrerPolicy::NoReferrerWhenDowngrade,
+        "origin" => ReferrerPolicy::Origin,
+        "origin-when-cross-origin" => ReferrerPolicy::OriginWhenCrossOrigin,
+        "same-origin" => ReferrerPolicy::SameOrigin,
+        "strict-origin" => ReferrerPolicy::StrictOrigin,
+        "unsafe-url" => ReferrerPolicy::UnsafeUrl,
+        _ => ReferrerPolicy::StrictOriginWhenCrossOrigin,
+    });
+
+    // HSTS is only emitted when a max-age is configured (it is meaningless and
+    // risky to send over plain HTTP).
+    mw.hsts = cfg.hsts_max_age.map(|age| {
+        let mut h = HstsConfig::new(age);
+        if cfg.hsts_include_subdomains {
+            h = h.include_subdomains();
+        }
+        if cfg.hsts_preload {
+            h = h.preload();
+        }
+        h
+    });
+
+    mw
 }
 
 /// Python-exposed CSP builder.
@@ -2209,7 +2297,6 @@ async fn run_lifecycle_handler_async(handler: PyObject) -> Result<(), String> {
 
     Ok(())
 }
-
 
 /// Python module definition.
 #[pymodule]

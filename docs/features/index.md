@@ -88,7 +88,7 @@ mindmap
     - :material-source-branch: Radix-tree routing (~100ns lookup)
     - :material-arrow-down-bold: Lazy body parsing & headers
     - :material-arrow-up-bold: JSON, HTML, streaming responses
-    - :material-view-dashboard: Flask-like blueprints
+    - :material-view-dashboard: Modular blueprints
     - :material-sync: Sync & async handlers
     - :material-lightning-bolt: SIMD-accelerated JSON
 
@@ -151,7 +151,7 @@ mindmap
 
     Power features for complex applications -- from dependency injection to auto-generated API documentation.
 
-    - :material-needle: FastAPI-style dependency injection
+    - :material-needle: Decorator-based dependency injection
     - :material-progress-clock: Post-response background tasks
     - :material-file-document-edit: Jinja2-compatible templates
     - :material-folder-open: Efficient static file serving
@@ -197,31 +197,27 @@ mindmap
 
 ---
 
-## :material-scale-balance: Feature Comparison
+## :material-scale-balance: Built-in Capabilities
 
-How does Cello stack up against popular Python web frameworks?
+Everything below ships in the box and runs on the Rust hot path:
 
-| Feature | 🎵 **Cello** | :material-lightning-bolt: FastAPI | :simple-flask: Flask | :simple-django: Django |
-|:--------|:---:|:---:|:---:|:---:|
-| **Rust-powered hot path** | :material-check-bold:{ style="color: #ff9100" } | :material-close: | :material-close: | :material-close: |
-| **SIMD JSON parsing** | :material-check-bold:{ style="color: #ff9100" } | :material-close: | :material-close: | :material-close: |
-| **Radix-tree routing** | :material-check-bold:{ style="color: #ff9100" } | :material-check: | :material-close: | :material-close: |
-| **Async support** | :material-check-bold:{ style="color: #ff9100" } | :material-check: | :material-check:[^1] | :material-check:[^2] |
-| **Dependency injection** | :material-check-bold:{ style="color: #ff9100" } | :material-check: | :material-close: | :material-close: |
-| **Auto OpenAPI docs** | :material-check-bold:{ style="color: #ff9100" } | :material-check: | :material-close: | :material-close:[^3] |
-| **WebSocket** | :material-check-bold:{ style="color: #ff9100" } | :material-check: | :material-close: | :material-check: |
-| **Built-in JWT auth** | :material-check-bold:{ style="color: #ff9100" } | :material-close: | :material-close: | :material-close: |
-| **RBAC guards** | :material-check-bold:{ style="color: #ff9100" } | :material-close: | :material-close: | :material-check: |
-| **Rate limiting** | :material-check-bold:{ style="color: #ff9100" } | :material-close: | :material-close: | :material-close: |
-| **Circuit breaker** | :material-check-bold:{ style="color: #ff9100" } | :material-close: | :material-close: | :material-close: |
-| **HTTP/2 & HTTP/3** | :material-check-bold:{ style="color: #ff9100" } | :material-close: | :material-close: | :material-close: |
-| **Cluster mode** | :material-check-bold:{ style="color: #ff9100" } | :material-close: | :material-close: | :material-close: |
-| **GraphQL** | :material-check-bold:{ style="color: #ff9100" } | :material-close: | :material-close: | :material-close: |
-| **gRPC** | :material-check-bold:{ style="color: #ff9100" } | :material-close: | :material-close: | :material-close: |
-
-[^1]: Flask async support requires version 2.0+ with additional setup.
-[^2]: Django async views require version 3.1+ and ASGI deployment.
-[^3]: Django REST Framework provides OpenAPI via third-party packages.
+| Capability | Included |
+|:-----------|:--------:|
+| **Rust-powered hot path** | :material-check-bold:{ style="color: #ff9100" } |
+| **SIMD JSON parsing** | :material-check-bold:{ style="color: #ff9100" } |
+| **Radix-tree routing** | :material-check-bold:{ style="color: #ff9100" } |
+| **Async support** | :material-check-bold:{ style="color: #ff9100" } |
+| **Dependency injection** | :material-check-bold:{ style="color: #ff9100" } |
+| **Auto OpenAPI docs** | :material-check-bold:{ style="color: #ff9100" } |
+| **WebSocket** | :material-check-bold:{ style="color: #ff9100" } |
+| **Built-in JWT auth** | :material-check-bold:{ style="color: #ff9100" } |
+| **RBAC guards** | :material-check-bold:{ style="color: #ff9100" } |
+| **Rate limiting** | :material-check-bold:{ style="color: #ff9100" } |
+| **Circuit breaker** | :material-check-bold:{ style="color: #ff9100" } |
+| **HTTP/2 & HTTP/3** | :material-check-bold:{ style="color: #ff9100" } |
+| **Cluster mode** | :material-check-bold:{ style="color: #ff9100" } |
+| **GraphQL** | :material-check-bold:{ style="color: #ff9100" } |
+| **gRPC** | :material-check-bold:{ style="color: #ff9100" } |
 
 ---
 

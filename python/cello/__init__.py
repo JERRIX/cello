@@ -310,7 +310,7 @@ class Blueprint:
     """
     Blueprint for grouping routes with a common prefix.
 
-    Provides Flask-like decorator syntax for route registration.
+    Provides decorator syntax for route registration.
     """
 
     def __init__(self, prefix: str, name: str = None):
@@ -444,7 +444,7 @@ class App:
     """
     The main Cello application class.
 
-    Provides a Flask-like API for defining routes and running the server.
+    Provides a clean API for defining routes and running the server.
     All heavy lifting is done in Rust for maximum performance.
 
     Enterprise Features:

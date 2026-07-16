@@ -261,9 +261,7 @@ impl HandlerRegistry {
             // PERF: Try direct-to-bytes first (skips serde_json::Value allocation)
             match python_to_json_bytes_direct(py, final_result.as_ref(py))? {
                 Some(bytes) => Ok(HandlerResult::JsonBytes(bytes)),
-                None => {
-                    python_to_json(py, final_result.as_ref(py)).map(HandlerResult::JsonValue)
-                }
+                None => python_to_json(py, final_result.as_ref(py)).map(HandlerResult::JsonValue),
             }
         })
     }

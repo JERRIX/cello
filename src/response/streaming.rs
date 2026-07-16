@@ -419,7 +419,10 @@ pub fn sse_event(event: Option<&str>, data: &str, id: Option<&str>) -> String {
     let mut output = String::new();
 
     if let Some(event_name) = event {
-        output.push_str(&format!("event: {}\n", event_name.replace(['\r', '\n'], "")));
+        output.push_str(&format!(
+            "event: {}\n",
+            event_name.replace(['\r', '\n'], "")
+        ));
     }
 
     if let Some(event_id) = id {

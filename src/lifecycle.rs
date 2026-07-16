@@ -109,7 +109,9 @@ impl Signal {
     /// are Unix-specific and are no-ops on other platforms.
     pub fn is_supported(&self) -> bool {
         #[cfg(unix)]
-        { true }
+        {
+            true
+        }
         #[cfg(not(unix))]
         {
             matches!(self, Signal::SIGTERM | Signal::SIGINT)

@@ -104,7 +104,12 @@ impl PyDatabase {
 
     /// Run a query and return the first row as a dict (or `None`).
     #[pyo3(signature = (sql, *params))]
-    fn fetchrow<'py>(&self, py: Python<'py>, sql: String, params: &PyTuple) -> PyResult<&'py PyAny> {
+    fn fetchrow<'py>(
+        &self,
+        py: Python<'py>,
+        sql: String,
+        params: &PyTuple,
+    ) -> PyResult<&'py PyAny> {
         let sql_params = py_params_to_sqlparams(&params.iter().collect::<Vec<_>>())?;
         let pool = self.pool.clone();
         pyo3_asyncio::tokio::future_into_py(py, async move {
@@ -120,7 +125,12 @@ impl PyDatabase {
 
     /// Run a query and return the first column of the first row (or `None`).
     #[pyo3(signature = (sql, *params))]
-    fn fetchval<'py>(&self, py: Python<'py>, sql: String, params: &PyTuple) -> PyResult<&'py PyAny> {
+    fn fetchval<'py>(
+        &self,
+        py: Python<'py>,
+        sql: String,
+        params: &PyTuple,
+    ) -> PyResult<&'py PyAny> {
         let sql_params = py_params_to_sqlparams(&params.iter().collect::<Vec<_>>())?;
         let pool = self.pool.clone();
         pyo3_asyncio::tokio::future_into_py(py, async move {
@@ -133,7 +143,10 @@ impl PyDatabase {
                     let dict = dict.as_ref(py).downcast::<pyo3::types::PyDict>()?;
                     // First column by position.
                     let name = r.columns()[0].name();
-                    Ok(dict.get_item(name)?.map(|v| v.into_py(py)).unwrap_or_else(|| py.None()))
+                    Ok(dict
+                        .get_item(name)?
+                        .map(|v| v.into_py(py))
+                        .unwrap_or_else(|| py.None()))
                 }
                 _ => Ok(py.None()),
             })
@@ -266,7 +279,12 @@ impl PyTransaction {
 
     /// Fetch a single row inside the transaction.
     #[pyo3(signature = (sql, *params))]
-    fn fetchrow<'py>(&self, py: Python<'py>, sql: String, params: &PyTuple) -> PyResult<&'py PyAny> {
+    fn fetchrow<'py>(
+        &self,
+        py: Python<'py>,
+        sql: String,
+        params: &PyTuple,
+    ) -> PyResult<&'py PyAny> {
         let sql_params = py_params_to_sqlparams(&params.iter().collect::<Vec<_>>())?;
         let slot = self.conn.clone();
         pyo3_asyncio::tokio::future_into_py(py, async move {

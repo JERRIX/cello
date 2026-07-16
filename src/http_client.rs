@@ -178,9 +178,7 @@ impl PyAsyncClient {
         _exc_val: PyObject,
         _exc_tb: PyObject,
     ) -> PyResult<&'py PyAny> {
-        pyo3_asyncio::tokio::future_into_py(py, async {
-            Ok(Python::with_gil(|py| py.None()))
-        })
+        pyo3_asyncio::tokio::future_into_py(py, async { Ok(Python::with_gil(|py| py.None())) })
     }
 }
 

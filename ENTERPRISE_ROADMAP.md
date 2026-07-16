@@ -2,61 +2,61 @@
 
 ## Vision: The Ultimate Enterprise-Grade Python Web Framework
 
-Cello aims to be the most comprehensive, performant, and secure Python web framework for enterprise applications. This roadmap outlines features drawn from the best of Spring Boot, FastAPI, Django, NestJS, Actix-web, Axum, Gin, and Express.
+Cello aims to be a comprehensive, performant, and secure Python web framework for enterprise applications. This roadmap outlines features drawn from established enterprise web-service best practices.
 
 ---
 
-## Feature Comparison Matrix
+## Feature Matrix
 
-### Current State vs. Competitors
+### Cello Capability Status
 
-| Feature | Cello | Spring Boot | FastAPI | Django | NestJS | Actix | Axum |
-|---------|-------|-------------|---------|--------|--------|-------|------|
-| **Performance** | | | | | | | |
-| SIMD JSON | ✅ | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ |
-| Zero-copy requests | ✅ | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ |
-| HTTP/2 | ✅ | ✅ | ✅ | ❌ | ✅ | ✅ | ✅ |
-| HTTP/3 (QUIC) | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ |
-| **Routing** | | | | | | | |
-| Radix tree routing | ✅ | ✅ | ✅ | ❌ | ✅ | ✅ | ✅ |
-| Route constraints | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| API versioning | ✅ | ✅ | ✅ | ❌ | ✅ | ✅ | ✅ |
-| **Security** | | | | | | | |
-| JWT Auth | ✅ | ✅ | ✅ | ✅* | ✅ | ✅ | ✅ |
-| OAuth2 | 🔲 | ✅ | ✅ | ✅ | ✅ | ✅* | ✅* |
-| RBAC/Guards | ✅ | ✅ | ❌ | ✅ | ✅ | ✅ | ✅ |
-| CSRF | ✅ | ✅ | ❌ | ✅ | ✅ | ✅ | ✅ |
-| Security Headers | ✅ | ✅ | ❌ | ✅ | ✅ | ✅ | ✅ |
-| **Middleware** | | | | | | | |
-| Rate Limiting | ✅ | ✅ | ✅* | ❌ | ✅ | ✅ | ✅ |
-| Caching | ✅ | ✅ | ✅* | ✅ | ✅ | ✅ | ✅ |
-| Circuit Breaker | ✅ | ✅ | ❌ | ❌ | ✅ | ✅ | ✅ |
-| **DI & Architecture** | | | | | | | |
-| Dependency Injection | ✅ | ✅ | ✅ | ❌ | ✅ | ❌ | ❌ |
-| Background Tasks | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Lifecycle Hooks | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| **Observability** | | | | | | | |
-| Prometheus Metrics | ✅ | ✅ | ✅* | ❌ | ✅ | ✅ | ✅ |
-| OpenTelemetry | ✅ | ✅ | ✅* | ❌ | ✅ | ✅* | ✅* |
-| Distributed Tracing | ✅ | ✅ | ❌ | ❌ | ✅ | ❌ | ❌ |
-| Health Checks | ✅ | ✅ | ❌ | ❌ | ✅ | ✅ | ✅ |
-| **API Protocols** | | | | | | | |
-| REST | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| GraphQL | ✅ | ✅ | ✅ | ✅* | ✅ | ✅ | ✅ |
-| gRPC | ✅ | ✅ | ✅* | ❌ | ✅ | ✅ | ✅ |
-| WebSocket | ✅ | ✅ | ✅ | ✅* | ✅ | ✅ | ✅ |
-| SSE | ✅ | ✅ | ✅ | ❌ | ✅ | ✅ | ✅ |
-| **Database** | | | | | | | |
-| Connection Pooling | ✅ | ✅ | ✅* | ✅ | ✅ | ✅ | ✅ |
-| Event Sourcing | ✅ | ✅ | ❌ | ❌ | ✅ | ❌ | ❌ |
-| CQRS | ✅ | ✅ | ❌ | ❌ | ✅ | ❌ | ❌ |
-| ORM Integration | 🔲 | ✅ | ✅* | ✅ | ✅ | ✅* | ✅* |
-| Migrations | 🔲 | ✅ | ❌ | ✅ | ✅ | ❌ | ❌ |
-| **Documentation** | | | | | | | |
-| OpenAPI/Swagger | ✅ | ✅ | ✅ | ✅* | ✅ | ✅ | ✅ |
-| Auto-generated docs | ✅ | ✅ | ✅ | ❌ | ✅ | ❌ | ❌ |
+| Feature | Cello |
+|---------|-------|
+| **Performance** | |
+| SIMD JSON | ✅ |
+| Zero-copy requests | ✅ |
+| HTTP/2 | ✅ |
+| HTTP/3 (QUIC) | ✅ |
+| **Routing** | |
+| Radix tree routing | ✅ |
+| Route constraints | ✅ |
+| API versioning | ✅ |
+| **Security** | |
+| JWT Auth | ✅ |
+| OAuth2 | 🔲 |
+| RBAC/Guards | ✅ |
+| CSRF | ✅ |
+| Security Headers | ✅ |
+| **Middleware** | |
+| Rate Limiting | ✅ |
+| Caching | ✅ |
+| Circuit Breaker | ✅ |
+| **DI & Architecture** | |
+| Dependency Injection | ✅ |
+| Background Tasks | ✅ |
+| Lifecycle Hooks | ✅ |
+| **Observability** | |
+| Prometheus Metrics | ✅ |
+| OpenTelemetry | ✅ |
+| Distributed Tracing | ✅ |
+| Health Checks | ✅ |
+| **API Protocols** | |
+| REST | ✅ |
+| GraphQL | ✅ |
+| gRPC | ✅ |
+| WebSocket | ✅ |
+| SSE | ✅ |
+| **Database** | |
+| Connection Pooling | ✅ |
+| Event Sourcing | ✅ |
+| CQRS | ✅ |
+| ORM Integration | ✅ |
+| Migrations | 🔲 |
+| **Documentation** | |
+| OpenAPI/Swagger | ✅ |
+| Auto-generated docs | ✅ |
 
-Legend: ✅ = Built-in | ✅* = Via extension | 🔲 = Planned | ❌ = Not available
+Legend: ✅ = Built-in | 🔲 = Planned
 
 ---
 
@@ -489,60 +489,20 @@ async def tenant_middleware(request, call_next):
 
 ---
 
-## Migration Guides
-
-### From FastAPI
+## API at a Glance
 
 ```python
-# FastAPI
-from fastapi import FastAPI, Depends
-app = FastAPI()
-
-@app.get("/items/{item_id}")
-async def read_item(item_id: int, db: Session = Depends(get_db)):
-    return db.query(Item).filter(Item.id == item_id).first()
-
-# Cello (almost identical!)
 from cello import App, Depends
+
 app = App()
+
+def get_db():
+    return Database()
 
 @app.get("/items/{item_id}")
 async def read_item(request, db=Depends(get_db)):
     item_id = int(request.params["item_id"])
     return db.query(Item).filter(Item.id == item_id).first()
-```
-
-### From Django
-
-```python
-# Django
-from django.http import JsonResponse
-def my_view(request, pk):
-    obj = MyModel.objects.get(pk=pk)
-    return JsonResponse({"id": obj.id, "name": obj.name})
-
-# Cello
-@app.get("/items/{pk}")
-def my_view(request):
-    pk = request.params["pk"]
-    obj = MyModel.objects.get(pk=pk)
-    return {"id": obj.id, "name": obj.name}
-```
-
-### From Express/NestJS
-
-```javascript
-// Express
-app.get('/users/:id', async (req, res) => {
-    const user = await db.getUser(req.params.id);
-    res.json(user);
-});
-
-// Cello (Python)
-@app.get("/users/{id}")
-async def get_user(request):
-    user = await db.get_user(request.params["id"])
-    return user
 ```
 
 ---
@@ -563,10 +523,5 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
 ## Sources & Inspiration
 
-Based on research and best practices from:
-- [Spring Boot Enterprise Features](https://spring.io/projects/spring-boot)
-- [FastAPI Best Practices](https://github.com/zhanymkanov/fastapi-best-practices)
-- [Actix-web Production Guide](https://actix.rs/)
-- [Axum Framework](https://github.com/tokio-rs/axum)
-- [NestJS Enterprise Patterns](https://nestjs.com/)
-- [Material for MkDocs](https://squidfunk.github.io/mkdocs-material/)
+Based on widely adopted industry best practices for enterprise web services,
+observability, and secure distributed-systems design.

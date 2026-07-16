@@ -1,4 +1,4 @@
-//! Prometheus metrics middleware for Cello (inspired by Litestar).
+//! Prometheus metrics middleware for Cello.
 //!
 //! Provides:
 //! - Request count metrics

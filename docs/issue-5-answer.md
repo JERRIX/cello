@@ -8,7 +8,7 @@ didn't work because there was nothing real underneath it, not because you were
 holding it wrong.
 
 **This is now fixed.** Cello ships a real native data layer (Postgres via
-`deadpool-postgres`, Redis via the `redis` crate), plus a small Django-inspired
+`deadpool-postgres`, Redis via the `redis` crate), plus a small built-in
 ORM. Everything below is tested end-to-end against real PostgreSQL + Redis.
 
 ---
@@ -150,13 +150,13 @@ async def create(request):
 ```
 
 Supported: typed fields (`AutoField/IntegerField/CharField/TextField/BooleanField/FloatField/`
-`JSONField/DateTimeField/ForeignKey`), chainable `filter/exclude/order_by/limit/offset` with Django
+`JSONField/DateTimeField/ForeignKey`), chainable `filter/exclude/order_by/limit/offset` with field
 lookups (`__gt/__gte/__lt/__lte/__in/__contains/__icontains/__startswith/__isnull`), and
 `get/first/all/count/exists/values/create/update/delete`, plus `create_table`/`drop_table` and
 `ForeignKey`.
 
-**Honest scope:** this is intentionally the common-80% ORM, **not** full Django parity — there is no
-migration autogeneration/diffing, no lazy reverse relations, no `select_related` join planner, and no
-signals/admin. For those, use raw `request.database` queries (they cover everything).
+**Honest scope:** this is intentionally the common-80% ORM. It does **not** include migration
+autogeneration/diffing, lazy reverse relations, a `select_related` join planner, or signals/admin.
+For those, use raw `request.database` queries (they cover everything).
 
 A full runnable example is in `examples/database_orm_demo.py`.

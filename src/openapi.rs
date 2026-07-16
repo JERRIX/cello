@@ -1,7 +1,7 @@
 //! OpenAPI Schema Generation for Cello Framework
 //!
 //! This module provides automatic OpenAPI 3.0 schema generation from routes,
-//! similar to FastAPI's approach but implemented in Rust for maximum performance.
+//! implemented in Rust for maximum performance.
 
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};

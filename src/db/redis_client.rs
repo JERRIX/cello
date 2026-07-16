@@ -79,8 +79,8 @@ impl PyRedis {
     /// Build a client from a Redis URL. The connection is opened lazily on first
     /// command, so this is safe to call at configuration time.
     pub fn connect(url: &str) -> PyResult<Self> {
-        let client = redis::Client::open(url)
-            .map_err(|e| rt_err(format!("invalid Redis URL: {e}")))?;
+        let client =
+            redis::Client::open(url).map_err(|e| rt_err(format!("invalid Redis URL: {e}")))?;
         Ok(Self {
             client,
             manager: Arc::new(Mutex::new(None)),
@@ -159,9 +159,22 @@ impl PyRedis {
         self.run(py, cmd)
     }
 
-    fn setex<'py>(&self, py: Python<'py>, key: String, seconds: i64, value: &PyAny) -> PyResult<&'py PyAny> {
+    fn setex<'py>(
+        &self,
+        py: Python<'py>,
+        key: String,
+        seconds: i64,
+        value: &PyAny,
+    ) -> PyResult<&'py PyAny> {
         let val = py_to_redis_bytes(value)?;
-        self.run(py, redis::cmd("SETEX").arg(key).arg(seconds).arg(val).to_owned())
+        self.run(
+            py,
+            redis::cmd("SETEX")
+                .arg(key)
+                .arg(seconds)
+                .arg(val)
+                .to_owned(),
+        )
     }
 
     #[pyo3(signature = (*keys))]
@@ -225,9 +238,18 @@ impl PyRedis {
         self.run(py, redis::cmd("HGET").arg(key).arg(field).to_owned())
     }
 
-    fn hset<'py>(&self, py: Python<'py>, key: String, field: String, value: &PyAny) -> PyResult<&'py PyAny> {
+    fn hset<'py>(
+        &self,
+        py: Python<'py>,
+        key: String,
+        field: String,
+        value: &PyAny,
+    ) -> PyResult<&'py PyAny> {
         let val = py_to_redis_bytes(value)?;
-        self.run(py, redis::cmd("HSET").arg(key).arg(field).arg(val).to_owned())
+        self.run(
+            py,
+            redis::cmd("HSET").arg(key).arg(field).arg(val).to_owned(),
+        )
     }
 
     fn hgetall<'py>(&self, py: Python<'py>, key: String) -> PyResult<&'py PyAny> {
@@ -269,8 +291,21 @@ impl PyRedis {
     }
 
     #[pyo3(signature = (key, start=0, stop=-1))]
-    fn lrange<'py>(&self, py: Python<'py>, key: String, start: i64, stop: i64) -> PyResult<&'py PyAny> {
-        self.run(py, redis::cmd("LRANGE").arg(key).arg(start).arg(stop).to_owned())
+    fn lrange<'py>(
+        &self,
+        py: Python<'py>,
+        key: String,
+        start: i64,
+        stop: i64,
+    ) -> PyResult<&'py PyAny> {
+        self.run(
+            py,
+            redis::cmd("LRANGE")
+                .arg(key)
+                .arg(start)
+                .arg(stop)
+                .to_owned(),
+        )
     }
 
     fn llen<'py>(&self, py: Python<'py>, key: String) -> PyResult<&'py PyAny> {
@@ -305,7 +340,12 @@ impl PyRedis {
 
     // ── Pub/Sub (publish only), scripting, admin ──────────────────────────────
 
-    fn publish<'py>(&self, py: Python<'py>, channel: String, message: &PyAny) -> PyResult<&'py PyAny> {
+    fn publish<'py>(
+        &self,
+        py: Python<'py>,
+        channel: String,
+        message: &PyAny,
+    ) -> PyResult<&'py PyAny> {
         let msg = py_to_redis_bytes(message)?;
         self.run(py, redis::cmd("PUBLISH").arg(channel).arg(msg).to_owned())
     }

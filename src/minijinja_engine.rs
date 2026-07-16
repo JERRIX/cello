@@ -161,7 +161,12 @@ impl PyMiniJinjaEngine {
     ///     )
     ///     # → "Hello, Bob! You have 5 messages."
     ///     ```
-    pub fn render_string(&self, source: &str, context: &PyDict, py: Python<'_>) -> PyResult<String> {
+    pub fn render_string(
+        &self,
+        source: &str,
+        context: &PyDict,
+        py: Python<'_>,
+    ) -> PyResult<String> {
         let ctx = pydict_to_json(context, py)?;
         let inner = self.inner.read();
         inner.env.render_str(source, &ctx).map_err(|e| {
@@ -283,18 +288,13 @@ pub fn pyobj_to_json(val: &PyAny) -> PyResult<serde_json::Value> {
     // list / tuple → JSON array
     if val.is_instance_of::<PyList>() {
         let list = val.downcast::<PyList>()?;
-        let arr: Vec<serde_json::Value> = list
-            .iter()
-            .map(pyobj_to_json)
-            .collect::<PyResult<_>>()?;
+        let arr: Vec<serde_json::Value> =
+            list.iter().map(pyobj_to_json).collect::<PyResult<_>>()?;
         return Ok(serde_json::Value::Array(arr));
     }
     if val.is_instance_of::<PyTuple>() {
         let tup = val.downcast::<PyTuple>()?;
-        let arr: Vec<serde_json::Value> = tup
-            .iter()
-            .map(pyobj_to_json)
-            .collect::<PyResult<_>>()?;
+        let arr: Vec<serde_json::Value> = tup.iter().map(pyobj_to_json).collect::<PyResult<_>>()?;
         return Ok(serde_json::Value::Array(arr));
     }
     // dict → JSON object
@@ -417,9 +417,7 @@ mod tests {
         let mut env = Environment::new();
         env.set_loader(minijinja::path_loader(dir.path()));
         let tmpl = env.get_template("greet.html").unwrap();
-        let result = tmpl
-            .render(serde_json::json!({ "name": "Cello" }))
-            .unwrap();
+        let result = tmpl.render(serde_json::json!({ "name": "Cello" })).unwrap();
         assert_eq!(result, "Hi, Cello!");
     }
 

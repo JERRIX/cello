@@ -8,7 +8,7 @@ redis crate). It shows three layers:
 
   1. Raw async queries        -> request.database.fetch / fetchrow / execute
   2. Transactions             -> @transactional (auto commit / rollback)
-  3. The Django-inspired ORM  -> Model.objects.filter(...).order_by(...)
+  3. The built-in ORM         -> Model.objects.filter(...).order_by(...)
   4. Redis                    -> request.redis.get / set / incr
 
 Prerequisites:

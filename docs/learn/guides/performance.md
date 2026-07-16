@@ -36,10 +36,9 @@ Every request touches Python only for business logic. Everything else runs in co
 
 On typical hardware (8-core), Cello handles:
 
-- **170,000+ requests/sec** for simple JSON endpoints (4 workers, wrk 12t/400c)
-- **1.9x faster** than BlackSheep+Granian, **3.1x faster** than FastAPI+Granian
+- **~138,000 requests/sec** for simple JSON, **~134,000** for nested JSON (release build, 4 workers, wrk 12t/400c/10s, 8-core WSL2)
 - **Sub-millisecond** routing and JSON serialization
-- **50-70% lower memory** than equivalent Python frameworks
+- **Low memory footprint** thanks to arena allocation and zero-copy data flow
 
 ---
 

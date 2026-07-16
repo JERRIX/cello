@@ -144,7 +144,7 @@ stored as bytes — pass a string (e.g. `json.dumps(obj)`), not a raw Python obj
 
 ## ORM
 
-A small Django-inspired ORM built on the pool. Bind it once with `setup(app.database)`.
+A small built-in ORM built on the pool. Bind it once with `setup(app.database)`.
 
 ```python
 from cello.orm import Model, AutoField, CharField, BooleanField, IntegerField, ForeignKey, setup

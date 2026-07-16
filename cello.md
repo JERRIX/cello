@@ -1,8 +1,7 @@
 # 🚀 Ultra-Fast Rust-Powered Python Async Web Framework
 
-**Goal:** Build a Rust-first web framework with Python syntax that is
-**faster than Robyn** and approaches **C-level performance** on the hot
-path.
+**Goal:** Build a Rust-first web framework with Python syntax that
+approaches **C-level performance** on the hot path.
 
 **Framwork Name:** Cello
 
@@ -175,18 +174,18 @@ def hello(req):
 
 ------------------------------------------------------------------------
 
-## 6️⃣ Why This Beats Robyn
+## 6️⃣ Architecture Highlights
 
-  Feature           Robyn    Cello
-  ----------------- -------- -----------
-  Python hot path   Yes      No
-  Routing           Python   Rust
-  JSON              Python   SIMD Rust
-  io_uring          No       Yes
-  Cluster mode      Limited  Full
-  TLS               Yes      Yes (rustls)
-  HTTP/2            Yes      Yes (h2)
-  HTTP/3            No       Yes (QUIC)
+  Feature           Cello
+  ----------------- -----------
+  Python hot path   No
+  Routing           Rust
+  JSON              SIMD Rust
+  io_uring          Yes
+  Cluster mode      Full
+  TLS               Yes (rustls)
+  HTTP/2            Yes (h2)
+  HTTP/3            Yes (QUIC)
 
 ------------------------------------------------------------------------
 

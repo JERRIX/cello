@@ -5,7 +5,7 @@ description: Upcoming enterprise features for Cello Framework
 
 # Enterprise Roadmap
 
-This roadmap outlines planned enterprise features for Cello Framework, based on research of industry-leading frameworks including Spring Boot, FastAPI, Django, NestJS, Actix-web, and Axum.
+This roadmap outlines planned enterprise features for Cello Framework, based on research of industry best practices for building production-grade web services.
 
 ## Timeline Overview
 
@@ -372,10 +372,5 @@ Priority areas:
 
 ## Sources & Research
 
-This roadmap is informed by best practices from:
-
-- [Spring Boot 4 OpenTelemetry](https://spring.io/blog/2025/11/18/opentelemetry-with-spring-boot/)
-- [FastAPI Best Practices](https://github.com/zhanymkanov/fastapi-best-practices)
-- [Actix-web Production Guide](https://actix.rs/)
-- [Axum Framework](https://github.com/tokio-rs/axum)
-- [NestJS Enterprise Patterns](https://nestjs.com/)
+This roadmap is informed by widely adopted industry best practices for
+observability, security, and distributed-systems design.

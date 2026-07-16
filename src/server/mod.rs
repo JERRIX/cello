@@ -547,7 +547,9 @@ impl Server {
         tokio::task::spawn(async move {
             #[cfg(unix)]
             {
-                if let Ok(mut sig) = tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate()) {
+                if let Ok(mut sig) =
+                    tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
+                {
                     let _ = sig.recv().await;
                     shutdown_sigterm.shutdown();
                 }
@@ -666,11 +668,15 @@ impl Server {
                                 let mut builder = http1::Builder::new();
                                 builder.keep_alive(true).pipeline_flush(true);
                                 if let Some(t) = read_header_timeout {
+                                    // hyper 1.x requires an explicit timer for
+                                    // header_read_timeout; without it the
+                                    // connection task panics on first use.
+                                    builder.timer(hyper_util::rt::TokioTimer::new());
                                     builder.header_read_timeout(t);
                                 }
                                 let serve_res: Result<(), hyper::Error> =
                                     builder.serve_connection(io, service).await;
-                                
+
                                 if let Err(err) = serve_res {
                                     // Only log if not a normal connection close
                                     if !err.is_incomplete_message() {
@@ -695,6 +701,116 @@ impl Server {
         }
 
         Ok(())
+    }
+}
+
+/// Serve a request whose path did not match any route but is claimed by a
+/// path-owning middleware (health checks, GraphQL, …). Builds a `Request`
+/// (including body for POST-style endpoints) and runs only the middleware that
+/// reported `serves_unrouted() == true`. Returns `Some(response)` if one of
+/// them served the request, `None` to fall through to a 404.
+#[allow(clippy::too_many_arguments)]
+async fn serve_unrouted(
+    req: HyperRequest<Incoming>,
+    method_str: &str,
+    uri: &hyper::Uri,
+    path: &str,
+    middleware: &Arc<MiddlewareChain>,
+    metrics: &Arc<ServerMetrics>,
+    max_body_size: usize,
+    read_body_timeout: Option<Duration>,
+) -> Option<Response> {
+    // Copy headers before the body is consumed.
+    let mut headers: HashMap<String, String> = HashMap::with_capacity(req.headers().len());
+    for (k, v) in req.headers().iter() {
+        headers.insert(k.as_str().to_owned(), v.to_str().unwrap_or("").to_owned());
+    }
+
+    // Parse query string (same rules as the routed path).
+    let query_string = uri.query().unwrap_or("");
+    let query: HashMap<String, String> = if query_string.is_empty() {
+        HashMap::new()
+    } else {
+        let decode = |raw: &str| -> String {
+            urlencoding::decode(&raw.replace('+', " "))
+                .unwrap_or_default()
+                .into_owned()
+        };
+        query_string
+            .split('&')
+            .filter(|s| !s.is_empty())
+            .filter_map(|pair| {
+                let mut parts = pair.splitn(2, '=');
+                match (parts.next(), parts.next()) {
+                    (Some(key), Some(value)) => Some((decode(key), decode(value))),
+                    (Some(key), None) => Some((decode(key), String::new())),
+                    _ => None,
+                }
+            })
+            .collect()
+    };
+
+    // Read the body for methods that carry one (GraphQL queries POST a body).
+    let body_bytes: Vec<u8> = match method_str {
+        "GET" | "HEAD" => {
+            drop(req);
+            Vec::new()
+        }
+        _ => {
+            let limit = if max_body_size == 0 {
+                usize::MAX
+            } else {
+                max_body_size
+            };
+            let collect_fut = Limited::new(req.into_body(), limit).collect();
+            let collected = match read_body_timeout {
+                Some(t) => match tokio::time::timeout(t, collect_fut).await {
+                    Ok(inner) => inner,
+                    Err(_) => {
+                        return Some(Response::error(408, "Request Timeout: body read timed out"))
+                    }
+                },
+                None => collect_fut.await,
+            };
+            match collected {
+                Ok(collected) => collected.to_bytes().to_vec(),
+                Err(_) => {
+                    return Some(Response::error(
+                        413,
+                        "Payload Too Large: request body exceeds limit",
+                    ))
+                }
+            }
+        }
+    };
+
+    let mut request = Request::from_http(
+        method_str.to_owned(),
+        path.to_owned(),
+        HashMap::new(),
+        query,
+        headers,
+        body_bytes,
+    );
+
+    // Sync path-owning middleware (e.g. health checks).
+    match middleware.execute_before_unrouted(&mut request) {
+        Ok(MiddlewareAction::Stop(response)) => return Some(response),
+        Ok(MiddlewareAction::Continue) => {}
+        Err(e) => {
+            metrics.inc_errors();
+            return Some(Response::error(e.status, &e.message));
+        }
+    }
+
+    // Async path-owning middleware (e.g. GraphQL).
+    match middleware.execute_before_async_unrouted(&mut request).await {
+        Ok(MiddlewareAction::Stop(response)) => Some(response),
+        Ok(MiddlewareAction::Continue) => None,
+        Err(e) => {
+            metrics.inc_errors();
+            Some(Response::error(e.status, &e.message))
+        }
     }
 }
 
@@ -735,6 +851,25 @@ async fn handle_request(
                     if let Some(response) = p.try_serve(path) {
                         return build_hyper_response(&response, metrics);
                     }
+                }
+            }
+            // Path-owning middleware (health checks, GraphQL, …) live in the
+            // chain and normally run only after a route match. Give any that
+            // claim this unrouted path a chance to serve it before we 404.
+            if middleware.has_unrouted(method_str, path) {
+                if let Some(response) = serve_unrouted(
+                    req,
+                    method_str,
+                    &uri,
+                    path,
+                    middleware,
+                    metrics,
+                    max_body_size,
+                    read_body_timeout,
+                )
+                .await
+                {
+                    return build_hyper_response(&response, metrics);
                 }
             }
             let response = Response::not_found(&format!("Not Found: {method_str} {path}"));
@@ -807,7 +942,11 @@ async fn handle_request(
             // Cap the streamed body with `Limited` so a chunked request (no
             // Content-Length) also cannot exhaust memory. `max_body_size == 0`
             // means unlimited.
-            let limit = if max_body_size == 0 { usize::MAX } else { max_body_size };
+            let limit = if max_body_size == 0 {
+                usize::MAX
+            } else {
+                max_body_size
+            };
             let collect_fut = Limited::new(req.into_body(), limit).collect();
             let collected = match read_body_timeout {
                 Some(t) => match tokio::time::timeout(t, collect_fut).await {

@@ -332,9 +332,7 @@ impl StaticFilesMiddleware {
             let norm_canonical = canonical_str
                 .strip_prefix(r"\\?\")
                 .unwrap_or(&canonical_str);
-            let norm_root = root_str
-                .strip_prefix(r"\\?\")
-                .unwrap_or(&root_str);
+            let norm_root = root_str.strip_prefix(r"\\?\").unwrap_or(&root_str);
 
             if !norm_canonical.starts_with(norm_root) {
                 return None;

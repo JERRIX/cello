@@ -50,29 +50,19 @@ hide:
 <!-- ===== PERFORMANCE BANNER ===== -->
 
 <div class="perf-banner" id="performance-banner">
-  <div class="perf-number">170,000+ req/sec</div>
-  <div class="perf-label">Benchmarked with 4 workers (5 processes) &middot; wrk (12 threads, 400 connections, 10s)</div>
+  <div class="perf-number">135,000+ req/sec</div>
+  <div class="perf-label">Release build &middot; 4 workers (5 processes) &middot; wrk (12 threads, 400 connections, 10s) &middot; 8-core WSL2 (client + server sharing cores)</div>
 
   <div class="perf-grid">
     <div class="perf-item">
-      <div class="fw-name">🔥 Cello</div>
-      <div class="fw-rps cello-rps">170,000+</div>
-      <div class="fw-detail">avg 2.8ms &middot; p99 15ms</div>
+      <div class="fw-name">🔥 Cello — GET /</div>
+      <div class="fw-rps cello-rps">~138,000</div>
+      <div class="fw-detail">avg 3.3–4.7ms</div>
     </div>
     <div class="perf-item">
-      <div class="fw-name">BlackSheep + Granian</div>
-      <div class="fw-rps other-rps">92,000</div>
-      <div class="fw-detail">avg 4.3ms &middot; p99 13ms</div>
-    </div>
-    <div class="perf-item">
-      <div class="fw-name">FastAPI + Granian</div>
-      <div class="fw-rps other-rps">55,000</div>
-      <div class="fw-detail">avg 7.1ms &middot; p99 17ms</div>
-    </div>
-    <div class="perf-item">
-      <div class="fw-name">Robyn</div>
-      <div class="fw-rps other-rps">29,000</div>
-      <div class="fw-detail">avg 14.2ms &middot; p99 38ms</div>
+      <div class="fw-name">🔥 Cello — GET /json</div>
+      <div class="fw-rps cello-rps">~134,000</div>
+      <div class="fw-detail">avg 3.3–3.8ms</div>
     </div>
   </div>
 </div>
@@ -113,7 +103,7 @@ hide:
 
     ---
 
-    FastAPI-style **dependency injection**, Flask-like **blueprints**, auto-generated **OpenAPI/Swagger** docs, and full **type hint** support.
+    Decorator-based **dependency injection**, modular **blueprints**, auto-generated **OpenAPI/Swagger** docs, and full **type hint** support.
 
     [:octicons-arrow-right-24: Quick start](getting-started/quickstart.md)
 
@@ -282,29 +272,29 @@ graph LR
 
 <!-- ===== FEATURE MATRIX ===== -->
 
-## :material-chart-bar: Feature Comparison
+## :material-chart-bar: Feature Highlights
 
-How Cello stacks up against popular Python web frameworks (4 workers, 5 processes each, wrk 12t/400c/10s):
+Everything below is built in and runs on the Rust hot path:
 
-| Feature | **Cello** | BlackSheep+Granian | FastAPI+Granian | Robyn |
-|---------|:---------:|:------------------:|:---------------:|:-----:|
-| **Requests/sec** | **170K+** | 92K | 55K | 29K |
-| **Async Native** | :material-check-circle: | :material-check-circle: | :material-check-circle: | :material-check-circle: |
-| **Rust Core** | :material-check-circle: | :material-check-circle: | :material-check-circle: | :material-check-circle: |
-| **SIMD JSON** | :material-check-circle: | :material-close-circle: | :material-close-circle: | :material-close-circle: |
-| **WebSocket** | :material-check-circle: | :material-check-circle: | :material-check-circle: | :material-check-circle: |
-| **HTTP/2** | :material-check-circle: | :material-check-circle: | :material-check-circle: | :material-close-circle: |
-| **HTTP/3 (QUIC)** | :material-check-circle: | :material-close-circle: | :material-close-circle: | :material-close-circle: |
-| **SSE** | :material-check-circle: | :material-check-circle: | :material-check-circle: | :material-close-circle: |
-| **GraphQL** | :material-check-circle: | :material-close-circle: | :material-close-circle: | :material-close-circle: |
-| **gRPC** | :material-check-circle: | :material-close-circle: | :material-close-circle: | :material-close-circle: |
-| **Message Queues** | :material-check-circle: | :material-close-circle: | :material-close-circle: | :material-close-circle: |
-| **Dependency Injection** | :material-check-circle: | :material-close-circle: | :material-check-circle: | :material-close-circle: |
-| **RBAC Guards** | :material-check-circle: | :material-close-circle: | :material-close-circle: | :material-close-circle: |
-| **OpenAPI Auto-Gen** | :material-check-circle: | :material-close-circle: | :material-check-circle: | :material-check-circle: |
-| **Event Sourcing** | :material-check-circle: | :material-close-circle: | :material-close-circle: | :material-close-circle: |
-| **CQRS** | :material-check-circle: | :material-close-circle: | :material-close-circle: | :material-close-circle: |
-| **Saga Pattern** | :material-check-circle: | :material-close-circle: | :material-close-circle: | :material-close-circle: |
+| Capability | Status |
+|------------|:------:|
+| **135K+ requests/sec** (release build, 4 workers, wrk 12t/400c/10s, WSL2) | :material-check-circle: |
+| **Async Native** | :material-check-circle: |
+| **Rust Core** | :material-check-circle: |
+| **SIMD JSON** | :material-check-circle: |
+| **WebSocket** | :material-check-circle: |
+| **HTTP/2** | :material-check-circle: |
+| **HTTP/3 (QUIC)** | :material-check-circle: |
+| **Server-Sent Events** | :material-check-circle: |
+| **GraphQL** | :material-check-circle: |
+| **gRPC** | :material-check-circle: |
+| **Message Queues** | :material-check-circle: |
+| **Dependency Injection** | :material-check-circle: |
+| **RBAC Guards** | :material-check-circle: |
+| **OpenAPI Auto-Gen** | :material-check-circle: |
+| **Event Sourcing** | :material-check-circle: |
+| **CQRS** | :material-check-circle: |
+| **Saga Pattern** | :material-check-circle: |
 
 ---
 

@@ -39,9 +39,12 @@ fn secure_compare(a: &str, b: &str) -> bool {
 pub struct JwtClaims {
     /// Subject (user ID)
     pub sub: String,
-    /// Expiration time (Unix timestamp)
+    /// Expiration time (Unix timestamp). Required: Cello rejects tokens without
+    /// an expiry (a security-positive default; `jsonwebtoken` validates `exp`).
     pub exp: u64,
-    /// Issued at time (Unix timestamp)
+    /// Issued at time (Unix timestamp). Optional — defaults to 0 when the token
+    /// omits `iat`, so standard `sub`+`exp` tokens decode without error.
+    #[serde(default)]
     pub iat: u64,
     /// Issuer
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -421,6 +424,21 @@ impl BasicAuth {
     }
 }
 
+impl BasicAuth {
+    /// Build a 401 challenge carrying the `WWW-Authenticate: Basic` header so
+    /// browsers prompt for credentials (RFC 7617). Returned via `Stop` from
+    /// `before` because an `Err` short-circuits the pipeline and skips `after`,
+    /// which would otherwise drop the header.
+    fn challenge(&self, detail: &str) -> Response {
+        let mut response = Response::error(401, detail);
+        response.set_header(
+            "WWW-Authenticate",
+            &format!("Basic realm=\"{}\"", self.realm),
+        );
+        response
+    }
+}
+
 impl Middleware for BasicAuth {
     fn before(&self, request: &mut Request) -> MiddlewareResult {
         // Check if path should be skipped
@@ -431,13 +449,20 @@ impl Middleware for BasicAuth {
         }
 
         // Extract credentials
-        let (username, password) = self.extract_credentials(request).ok_or_else(|| {
-            MiddlewareError::unauthorized("Invalid or missing Basic authentication")
-        })?;
+        let (username, password) = match self.extract_credentials(request) {
+            Some(creds) => creds,
+            None => {
+                return Ok(MiddlewareAction::Stop(
+                    self.challenge("Invalid or missing Basic authentication"),
+                ))
+            }
+        };
 
         // Validate credentials
         if !(self.validator)(&username, &password) {
-            return Err(MiddlewareError::unauthorized("Invalid credentials"));
+            return Ok(MiddlewareAction::Stop(
+                self.challenge("Invalid credentials"),
+            ));
         }
 
         // Store username in context
@@ -449,7 +474,9 @@ impl Middleware for BasicAuth {
     }
 
     fn after(&self, _request: &Request, response: &mut Response) -> MiddlewareResult {
-        // Add WWW-Authenticate header on 401 responses
+        // Defense-in-depth: ensure the challenge header is present on any 401
+        // produced downstream (e.g. by a handler) as well. `set_header` inserts
+        // idempotently, so re-setting a value already present is harmless.
         if response.status == 401 {
             response.set_header(
                 "WWW-Authenticate",

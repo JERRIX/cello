@@ -56,7 +56,7 @@ The building blocks of every Cello application -- from creating your app to hand
 
     ---
 
-    Group related routes under a common prefix with shared middleware and guards. Flask-inspired modular architecture.
+    Group related routes under a common prefix with shared middleware and guards. Modular application architecture.
 
     **Key methods:** `get()` `post()` `put()` `delete()` `use()` `register_blueprint()`
 

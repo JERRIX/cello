@@ -1,6 +1,6 @@
 //! Dependency Injection system for Cello.
 //!
-//! Inspired by FastAPI's dependency injection system, this module provides:
+//! This module provides a decorator-based dependency injection system:
 //! - Hierarchical dependency resolution
 //! - Request-scoped, Singleton, and Transient dependencies
 //! - Async dependency support

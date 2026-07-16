@@ -5,7 +5,7 @@ description: Route grouping and modular application structure with Blueprints
 
 # Blueprint API
 
-Blueprints group related routes under a common URL prefix. They enable modular application structure, similar to Flask's blueprints.
+Blueprints group related routes under a common URL prefix. They enable modular application structure.
 
 ---
 

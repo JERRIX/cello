@@ -1,11 +1,11 @@
 ---
 title: Dependency Injection
-description: FastAPI-inspired dependency injection system in Cello Framework
+description: Decorator-based dependency injection system in Cello Framework
 ---
 
 # Dependency Injection
 
-Cello provides a FastAPI-inspired dependency injection (DI) system that lets you declare dependencies for your route handlers. Dependencies are resolved automatically at request time, with support for scoping, chaining, and testing overrides.
+Cello provides a decorator-based dependency injection (DI) system that lets you declare dependencies for your route handlers. Dependencies are resolved automatically at request time, with support for scoping, chaining, and testing overrides.
 
 ---
 

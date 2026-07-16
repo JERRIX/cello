@@ -1,11 +1,11 @@
 ---
 title: Blueprints
-description: Flask-like route grouping with Blueprints in Cello Framework
+description: Route grouping with Blueprints in Cello Framework
 ---
 
 # Blueprints
 
-Blueprints provide Flask-like route grouping with URL prefixes. They let you organize your application into modular components, each with its own routes, and optionally nest them for hierarchical URL structures.
+Blueprints provide route grouping with URL prefixes. They let you organize your application into modular components, each with its own routes, and optionally nest them for hierarchical URL structures.
 
 ## Creating a Blueprint
 
