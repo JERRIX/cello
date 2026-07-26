@@ -62,6 +62,21 @@ def _validate_wrap(func, body):
     if body is not None:
         return wrap_handler_with_body(func, body)
     return wrap_handler_with_validation(func)
+
+
+def _mark_blocking(handler, blocking):
+    """Record an explicit `blocking=` override for the offload policy.
+
+    Sync handlers are normally timed and moved to the blocking threadpool only
+    once observed to block. `True` pools the handler from the very first request;
+    `False` pins it inline. Read by the Rust handler registry at registration.
+    """
+    if blocking is not None:
+        try:
+            handler.__cello_blocking__ = bool(blocking)
+        except AttributeError:
+            pass  # callable object with no writable __dict__; stays adaptive
+    return handler
 from .database import transactional
 from .guards import (
     Guard,
@@ -94,6 +109,7 @@ from cello._cello import (
 from cello._cello import (
     TimeoutConfig,
     LimitsConfig,
+    ThreadPoolConfig,
     ClusterConfig,
     TlsConfig,
     Http2Config,
@@ -252,6 +268,7 @@ __all__ = [
     # Advanced Configuration
     "TimeoutConfig",
     "LimitsConfig",
+    "ThreadPoolConfig",
     "ClusterConfig",
     "TlsConfig",
     "Http2Config",
@@ -341,42 +358,42 @@ class Blueprint:
         """Get the blueprint's name."""
         return self._bp.name
 
-    def get(self, path: str, guards: list = None, body: type = None):
+    def get(self, path: str, guards: list = None, body: type = None, blocking: bool = None):
         """Register a GET route."""
         def decorator(func):
-            wrapped = _apply_guards(_validate_wrap(func, body), guards)
+            wrapped = _mark_blocking(_apply_guards(_validate_wrap(func, body), guards), blocking)
             self._bp.get(path, wrapped)
             return wrapped
         return decorator
 
-    def post(self, path: str, guards: list = None, body: type = None):
+    def post(self, path: str, guards: list = None, body: type = None, blocking: bool = None):
         """Register a POST route."""
         def decorator(func):
-            wrapped = _apply_guards(_validate_wrap(func, body), guards)
+            wrapped = _mark_blocking(_apply_guards(_validate_wrap(func, body), guards), blocking)
             self._bp.post(path, wrapped)
             return wrapped
         return decorator
 
-    def put(self, path: str, guards: list = None, body: type = None):
+    def put(self, path: str, guards: list = None, body: type = None, blocking: bool = None):
         """Register a PUT route."""
         def decorator(func):
-            wrapped = _apply_guards(_validate_wrap(func, body), guards)
+            wrapped = _mark_blocking(_apply_guards(_validate_wrap(func, body), guards), blocking)
             self._bp.put(path, wrapped)
             return wrapped
         return decorator
 
-    def delete(self, path: str, guards: list = None, body: type = None):
+    def delete(self, path: str, guards: list = None, body: type = None, blocking: bool = None):
         """Register a DELETE route."""
         def decorator(func):
-            wrapped = _apply_guards(_validate_wrap(func, body), guards)
+            wrapped = _mark_blocking(_apply_guards(_validate_wrap(func, body), guards), blocking)
             self._bp.delete(path, wrapped)
             return wrapped
         return decorator
 
-    def patch(self, path: str, guards: list = None, body: type = None):
+    def patch(self, path: str, guards: list = None, body: type = None, blocking: bool = None):
         """Register a PATCH route."""
         def decorator(func):
-            wrapped = _apply_guards(_validate_wrap(func, body), guards)
+            wrapped = _mark_blocking(_apply_guards(_validate_wrap(func, body), guards), blocking)
             self._bp.patch(path, wrapped)
             return wrapped
         return decorator
@@ -492,7 +509,7 @@ class App:
             "tags": tags or []
         })
 
-    def get(self, path: str, tags: list = None, summary: str = None, description: str = None, guards: list = None, body: type = None):
+    def get(self, path: str, tags: list = None, summary: str = None, description: str = None, guards: list = None, body: type = None, blocking: bool = None):
         """
         Register a GET route.
 
@@ -512,60 +529,60 @@ class App:
                 return {"message": f"Hello, {request.params['name']}!"}
         """
         def decorator(func):
-            wrapped = _apply_guards(_validate_wrap(self._make_redis_aware(func), body), guards)
+            wrapped = _mark_blocking(_apply_guards(_validate_wrap(self._make_redis_aware(func), body), guards), blocking)
             self._app.get(path, wrapped)
             self._register_route("GET", path, func, tags, summary, description)
             return wrapped
         return decorator
 
-    def post(self, path: str, tags: list = None, summary: str = None, description: str = None, guards: list = None, body: type = None):
+    def post(self, path: str, tags: list = None, summary: str = None, description: str = None, guards: list = None, body: type = None, blocking: bool = None):
         """Register a POST route."""
         def decorator(func):
-            wrapped = _apply_guards(_validate_wrap(self._make_redis_aware(func), body), guards)
+            wrapped = _mark_blocking(_apply_guards(_validate_wrap(self._make_redis_aware(func), body), guards), blocking)
             self._app.post(path, wrapped)
             self._register_route("POST", path, func, tags, summary, description)
             return wrapped
         return decorator
 
-    def put(self, path: str, tags: list = None, summary: str = None, description: str = None, guards: list = None, body: type = None):
+    def put(self, path: str, tags: list = None, summary: str = None, description: str = None, guards: list = None, body: type = None, blocking: bool = None):
         """Register a PUT route."""
         def decorator(func):
-            wrapped = _apply_guards(_validate_wrap(self._make_redis_aware(func), body), guards)
+            wrapped = _mark_blocking(_apply_guards(_validate_wrap(self._make_redis_aware(func), body), guards), blocking)
             self._app.put(path, wrapped)
             self._register_route("PUT", path, func, tags, summary, description)
             return wrapped
         return decorator
 
-    def delete(self, path: str, tags: list = None, summary: str = None, description: str = None, guards: list = None, body: type = None):
+    def delete(self, path: str, tags: list = None, summary: str = None, description: str = None, guards: list = None, body: type = None, blocking: bool = None):
         """Register a DELETE route."""
         def decorator(func):
-            wrapped = _apply_guards(_validate_wrap(self._make_redis_aware(func), body), guards)
+            wrapped = _mark_blocking(_apply_guards(_validate_wrap(self._make_redis_aware(func), body), guards), blocking)
             self._app.delete(path, wrapped)
             self._register_route("DELETE", path, func, tags, summary, description)
             return wrapped
         return decorator
 
-    def patch(self, path: str, tags: list = None, summary: str = None, description: str = None, guards: list = None, body: type = None):
+    def patch(self, path: str, tags: list = None, summary: str = None, description: str = None, guards: list = None, body: type = None, blocking: bool = None):
         """Register a PATCH route."""
         def decorator(func):
-            wrapped = _apply_guards(_validate_wrap(self._make_redis_aware(func), body), guards)
+            wrapped = _mark_blocking(_apply_guards(_validate_wrap(self._make_redis_aware(func), body), guards), blocking)
             self._app.patch(path, wrapped)
             self._register_route("PATCH", path, func, tags, summary, description)
             return wrapped
         return decorator
 
-    def options(self, path: str, guards: list = None):
+    def options(self, path: str, guards: list = None, blocking: bool = None):
         """Register an OPTIONS route."""
         def decorator(func):
-            wrapped = _apply_guards(wrap_handler_with_validation(self._make_redis_aware(func)), guards)
+            wrapped = _mark_blocking(_apply_guards(wrap_handler_with_validation(self._make_redis_aware(func)), guards), blocking)
             self._app.options(path, wrapped)
             return wrapped
         return decorator
 
-    def head(self, path: str, guards: list = None):
+    def head(self, path: str, guards: list = None, blocking: bool = None):
         """Register a HEAD route."""
         def decorator(func):
-            wrapped = _apply_guards(wrap_handler_with_validation(self._make_redis_aware(func)), guards)
+            wrapped = _mark_blocking(_apply_guards(wrap_handler_with_validation(self._make_redis_aware(func)), guards), blocking)
             self._app.head(path, wrapped)
             return wrapped
         return decorator
@@ -591,7 +608,7 @@ class App:
             return func
         return decorator
 
-    def route(self, path: str, methods: list = None):
+    def route(self, path: str, methods: list = None, blocking: bool = None):
         """
         Register a route that handles multiple HTTP methods.
 
@@ -603,7 +620,7 @@ class App:
             methods = ["GET"]
 
         def decorator(func):
-            wrapped = wrap_handler_with_validation(self._make_redis_aware(func))
+            wrapped = _mark_blocking(wrap_handler_with_validation(self._make_redis_aware(func)), blocking)
             for method in methods:
                 method_upper = method.upper()
                 if method_upper == "GET":
@@ -726,6 +743,29 @@ class App:
             config: TimeoutConfig instance.
         """
         self._app.set_timeouts(config)
+        return self
+
+    def set_threadpool(self, config: "ThreadPoolConfig"):
+        """Configure the blocking threadpool used for blocking sync handlers.
+
+        Sync ``def`` handlers run inline on the server thread, which is the fastest
+        path for handlers that simply build and return a value. A handler that
+        *blocks* — ``time.sleep``, a synchronous database driver, a synchronous HTTP
+        client — would otherwise hold that thread for its full duration and stall
+        every other connection. Cello times sync handlers and permanently moves any
+        that exceed ``offload_threshold_ms`` onto a bounded pool of OS threads, so
+        blocking calls overlap instead of serialising.
+
+        Only handlers that release the GIL benefit; pure-Python CPU-bound work is
+        still serialised by the GIL no matter which thread it runs on.
+
+        The pool is shared with async coroutine waits and background tasks, so size
+        it for all three. Must be called before ``run()``.
+
+        Args:
+            config: ThreadPoolConfig instance.
+        """
+        self._app.set_threadpool(config)
         return self
 
     def enable_jwt(self, config: "JwtConfig", skip_paths: list = None):

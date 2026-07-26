@@ -95,6 +95,8 @@ pub struct Cello {
     read_header_timeout_secs: u64,
     /// Timeout (seconds, 0 = disabled) for a single handler to produce a response.
     handler_timeout_secs: u64,
+    /// Maximum number of blocking threads available for offloaded sync handlers.
+    blocking_threads: usize,
     /// Native Postgres pool built by `enable_database()`, exposed as `app.database`
     /// and injected into each request as `request.database`.
     database_client: Option<Py<db::PyDatabase>>,
@@ -127,6 +129,9 @@ impl Cello {
             read_body_timeout_secs: 0,
             read_header_timeout_secs: 0,
             handler_timeout_secs: 0,
+            // 64 concurrent blocking handlers is enough to absorb typical blocking
+            // I/O without the memory and GIL contention of a very large pool.
+            blocking_threads: 64,
             database_client: None,
             redis_client: None,
         }
@@ -197,6 +202,19 @@ impl Cello {
         self.read_header_timeout_secs = config.read_header_timeout;
         self.read_body_timeout_secs = config.read_body_timeout;
         self.handler_timeout_secs = config.handler_timeout;
+    }
+
+    /// Configure the blocking threadpool used for blocking sync handlers.
+    ///
+    /// Pass a `ThreadPoolConfig`. Must be called before `run()` — the pool size is
+    /// fixed when the runtime is built.
+    pub fn set_threadpool(&mut self, config: &PyThreadPoolConfig) {
+        self.blocking_threads = config.size.max(1);
+        self.handlers.set_offload_threshold_us(if config.adaptive {
+            config.offload_threshold_ms.saturating_mul(1_000)
+        } else {
+            u64::MAX
+        });
     }
 
     /// Enable CORS middleware.
@@ -286,6 +304,9 @@ impl Cello {
     pub fn register_singleton(&mut self, name: String, value: PyObject) {
         self.dependency_container
             .register_py_singleton(&name, value);
+        // Without this the registry's fast-path check stays false and `Depends(...)`
+        // parameters are never resolved — the handler receives the Depends marker.
+        self.handlers.set_has_dependencies(true);
     }
 
     /// Enable logging middleware.
@@ -926,6 +947,7 @@ def openapi_handler(request):
 
         // Limits/timeouts are plain Copy values captured for the server config.
         let max_body_size = self.max_body_size;
+        let blocking_threads = self.blocking_threads;
         let read_body_timeout_secs = self.read_body_timeout_secs;
         let read_header_timeout_secs = self.read_header_timeout_secs;
         let handler_timeout_secs = self.handler_timeout_secs;
@@ -945,6 +967,9 @@ def openapi_handler(request):
         py.allow_threads(|| {
             tokio::runtime::Builder::new_current_thread()
                 .enable_all()
+                // Bounds the blocking pool that offloaded sync handlers, async
+                // coroutine waits, and background tasks all share.
+                .max_blocking_threads(blocking_threads)
                 .build()
                 .expect("failed to build Tokio runtime")
                 .block_on(async move {
@@ -1075,6 +1100,43 @@ impl PyLimitsConfig {
             max_body_size,
             max_connections,
             max_requests_per_connection,
+        }
+    }
+}
+
+/// Python-exposed blocking-threadpool configuration.
+///
+/// Sync `def` handlers run inline on the server thread by default, which is the
+/// fastest path for handlers that just build and return a value. A handler that
+/// *blocks* (sleep, database driver, socket I/O) would stall the server thread for
+/// its whole duration, so Cello times sync handlers and moves any that exceed
+/// `offload_threshold_ms` onto a bounded pool of OS threads, permanently.
+///
+/// Note the pool is shared with async-coroutine waits and background tasks, so size
+/// it for the total of those plus concurrent blocking handlers.
+#[pyclass(name = "ThreadPoolConfig")]
+#[derive(Clone)]
+pub struct PyThreadPoolConfig {
+    /// Maximum number of blocking threads.
+    #[pyo3(get, set)]
+    pub size: usize,
+    /// Sync handler duration (milliseconds) above which it is moved to the pool.
+    #[pyo3(get, set)]
+    pub offload_threshold_ms: u64,
+    /// When false, only handlers marked `blocking=True` are offloaded.
+    #[pyo3(get, set)]
+    pub adaptive: bool,
+}
+
+#[pymethods]
+impl PyThreadPoolConfig {
+    #[new]
+    #[pyo3(signature = (size=64, offload_threshold_ms=1, adaptive=true))]
+    pub fn new(size: usize, offload_threshold_ms: u64, adaptive: bool) -> Self {
+        Self {
+            size,
+            offload_threshold_ms,
+            adaptive,
         }
     }
 }
@@ -2398,6 +2460,7 @@ fn _cello(_py: Python<'_>, m: &PyModule) -> PyResult<()> {
     // Configuration classes
     m.add_class::<PyTimeoutConfig>()?;
     m.add_class::<PyLimitsConfig>()?;
+    m.add_class::<PyThreadPoolConfig>()?;
     m.add_class::<PyClusterConfig>()?;
     m.add_class::<PyTlsConfig>()?;
     m.add_class::<PyHttp2Config>()?;

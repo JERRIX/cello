@@ -252,6 +252,7 @@ nav:
       - Static Files: features/advanced/static-files.md
       - File Uploads: features/advanced/file-uploads.md
       - DTOs & Validation: features/advanced/dto-validation.md
+      - Blocking Handlers & Threadpool: features/advanced/threadpool.md
 
   - Learn:
     - learn/index.md
