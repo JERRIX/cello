@@ -7,6 +7,7 @@ In development the 500 body describes the error; with ``debug`` off (including
 server log.
 """
 
+import os
 import socket
 import subprocess
 import sys
@@ -55,22 +56,32 @@ def _serve(tmp_path, mode):
     script = tmp_path / "app.py"
     script.write_text(_APP)
     port = _free_port()
+    # A piped stdout defaults to the locale codec on Windows (cp1252), which
+    # cannot encode the startup banner; force UTF-8 so the child can start.
+    env = {**os.environ, "PYTHONUTF8": "1", "PYTHONIOENCODING": "utf-8"}
     proc = subprocess.Popen(
         [sys.executable, str(script), str(port), mode],
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
         text=True,
+        encoding="utf-8",
+        errors="replace",
+        env=env,
     )
     base = f"http://127.0.0.1:{port}"
-    deadline = time.time() + 15
+    deadline = time.time() + 30
     while time.time() < deadline:
+        if proc.poll() is not None:
+            out, _ = proc.communicate()
+            raise RuntimeError(f"server exited with {proc.returncode}:\n{out}")
         try:
             if requests.get(base + "/ok", timeout=0.5).ok:
                 return proc, base
         except Exception:
             time.sleep(0.1)
     proc.kill()
-    raise RuntimeError("server never came up")
+    out, _ = proc.communicate()
+    raise RuntimeError(f"server never came up:\n{out}")
 
 
 def _stop(proc):
