@@ -935,6 +935,13 @@ def openapi_handler(request):
         Ok(())
     }
 
+    /// Choose whether unhandled handler errors are described in 500 responses
+    /// (development) or replaced by a generic `Internal Server Error` with the
+    /// details written to the server log (production).
+    pub fn set_expose_errors(&self, expose: bool) {
+        server::set_expose_error_details(expose);
+    }
+
     /// Start the HTTP server.
     #[pyo3(signature = (host=None, port=None, workers=None))]
     pub fn run(
@@ -1019,6 +1026,14 @@ def openapi_handler(request):
                     }
 
                     let _ = server.run().await;
+
+                    // Ctrl-C (SIGINT) is delivered to CPython's own handler as well as
+                    // Tokio's, which leaves a KeyboardInterrupt pending. The first Python
+                    // call below would raise it, dropping the hook's coroutine un-awaited
+                    // (and the error is filtered out below). Consume it so the hooks run.
+                    Python::with_gil(|py| {
+                        let _ = py.check_signals();
+                    });
 
                     // Shutdown hooks
                     for handler in &shutdown_handlers {

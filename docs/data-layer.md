@@ -7,11 +7,13 @@ awaitables. The GIL is released for the whole database/Redis round-trip.
 
 There are three ways to use it, smallest to largest:
 
-1. **Raw queries** — `request.database.fetch(...)`, asyncpg-style.
+1. **Raw queries** — `request.database.fetch(...)`.
 2. **Transactions** — `async with request.database.transaction()` or `@transactional`.
 3. **The ORM** — `Model.objects.filter(...)` (see [ORM](#orm)).
 
 > Requires Python 3.12+, a reachable PostgreSQL, and (optionally) Redis.
+
+References: [ORM API](reference/api/orm.md) and [Database API](reference/api/database.md).
 
 ## Setup
 
@@ -193,10 +195,16 @@ the rows as Python objects.
 ### Type mapping
 
 `bool/int/float/str/bytes` map to their SQL equivalents; `dict`/`list` map to
-`json`/`jsonb`. On the way back, `jsonb` becomes a nested Python object,
-timestamps/uuid become ISO strings. For `numeric`/`timestamptz` **parameters**,
-add an explicit cast — `$1::numeric` — so the value binds as text and Postgres
-casts it.
+`json`/`jsonb` (a `list`/`tuple` bound to an array parameter such as
+`= ANY($1)` becomes a Postgres array). Parameters are bound by the type Postgres
+reports for each `$n`: `numeric` takes `Decimal`, `int`, `float` or `str`;
+`timestamptz`, `timestamp`, `date`, `time` and `uuid` take Python objects or ISO
+strings; an out-of-range integer raises `ParameterRangeError` and a value that
+cannot bind raises `ParameterTypeError` before the query is sent. On the way
+back, `numeric` is an exact decimal string, `jsonb` is a nested Python object,
+arrays are lists, and timestamps/uuid are strings. The full tables are in the
+[Database API](reference/api/database.md#sql-parameters) and the
+[ORM value shapes](reference/api/orm.md#value-shapes).
 
 ## Transactions
 

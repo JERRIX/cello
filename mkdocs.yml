@@ -253,6 +253,7 @@ nav:
       - File Uploads: features/advanced/file-uploads.md
       - DTOs & Validation: features/advanced/dto-validation.md
       - Blocking Handlers & Threadpool: features/advanced/threadpool.md
+      - Database, ORM & Redis: data-layer.md
       - Migrations (experimental): features/advanced/migrations.md
 
   - Learn:
@@ -285,6 +286,8 @@ nav:
       - Middleware: reference/api/middleware.md
       - Guards: reference/api/guards.md
       - Context: reference/api/context.md
+      - ORM: reference/api/orm.md
+      - Database: reference/api/database.md
     - Configuration:
       - Server Config: reference/config/server.md
       - Security Config: reference/config/security.md
@@ -324,6 +327,11 @@ nav:
       - Advanced Middleware: examples/real/advanced-middleware.md
       - Adaptive Rate Limiting: examples/real/adaptive-rate-limiting.md
       - Database & Redis: examples/real/database-demo.md
+      - Database, Redis & ORM: examples/real/database-orm.md
+      - Advanced ORM Tour: examples/real/orm-advanced.md
+      - Native Schema (body=Model): examples/real/native-schema.md
+      - Migrations Walkthrough: examples/real/migrations.md
+      - Postgres TLS: examples/real/postgres-tls.md
       - Enterprise Config: examples/real/enterprise-config.md
       - Cluster Mode: examples/real/cluster-demo.md
       - Health Checks: examples/enterprise/health-checks.md

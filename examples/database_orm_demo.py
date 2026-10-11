@@ -96,7 +96,7 @@ async def startup():
     await User.drop_table()
     await app.database.execute("DROP TABLE IF EXISTS accounts")
 
-    # Raw DDL through the pool (asyncpg-style).
+    # Raw DDL through the pool.
     await app.database.execute(
         "CREATE TABLE accounts (id SERIAL PRIMARY KEY, balance INT NOT NULL)"
     )

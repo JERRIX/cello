@@ -7,6 +7,10 @@ description: Configure connection-pooled PostgreSQL and Redis clients in Cello, 
 
 Cello's data-layer helpers give you production-ready database and cache connectivity through simple configuration objects and a single `enable_*` call. This example wires up a PostgreSQL connection pool, an async Redis client, and demonstrates how the `@transactional` decorator wraps an async handler in a database transaction — so errors automatically trigger a rollback without any try/except boilerplate in your business logic.
 
+!!! note "Looking for the real database layer?"
+
+    This script is a *configuration* walkthrough: the user and cache endpoints use in-memory Python data so it runs without any server, and `/db/status` and `/redis/status` only report the configured pool size. Since 1.3.0 `enable_database()` and `enable_redis()` build real native pools. For an example that runs real queries, transactions, ORM models and Redis commands, see [Database, Redis & ORM](database-orm.md), and for the 1.4.0 ORM features see [Advanced ORM Tour](orm-advanced.md).
+
 ## Features Demonstrated
 
 - `DatabaseConfig` — typed configuration for PostgreSQL with pool size and connection lifetime settings

@@ -59,6 +59,7 @@ tags:
 ```mermaid
 timeline
     title Cello Framework Releases
+    2026-10 : v1.4.0 - The Native Core - Rust Schema Registry, Row to JSON Pipeline, Native Validation, Postgres TLS
     2026-07 : v1.3.0 - Async Rework, Native Data Layer, Plugin Audit & Three-Pillar Upgrades
     2026-06 : v1.2.4 - Critical Fix: async def Handlers
             : v1.2.3 - Full Middleware Python API & Docs Fixes
@@ -83,6 +84,16 @@ timeline
 ## :material-history: All Releases
 
 <div class="grid cards" markdown>
+
+-   :material-engine:{ .lg .middle } **v1.4.0** — The Native Core
+
+    ---
+
+    One model declaration drives the ORM, validation, serialization and OpenAPI. Prepared-statement cache, new async bridge, Rust row → JSON pipeline (up to 19.7× faster list endpoints), native `body=Model` validation, Postgres TLS, Q objects / aggregates / relations / bulk operations, experimental `cello migrate`.
+
+    :material-calendar: October 2026
+
+    [:octicons-arrow-right-24: Release Notes](v1.4.0.md)
 
 -   :material-sync:{ .lg .middle } **v1.3.0** — Async Rework, Data Layer & Upgrades
 
@@ -262,7 +273,8 @@ timeline
 
 | Version | Status | Support Until |
 |:--------|:-------|:--------------|
-| **1.2.x** | :material-check-circle:{ style="color: #4caf50" } **Active** | Current |
+| **1.4.x** | :material-check-circle:{ style="color: #4caf50" } **Active** | Current |
+| 1.3.x, 1.2.x | :material-wrench:{ style="color: #ffab40" } Maintenance | To be announced |
 | 1.1.x | :material-wrench:{ style="color: #ffab40" } Maintenance | December 2026 |
 | 1.0.x | :material-wrench:{ style="color: #ffab40" } Maintenance | October 2026 |
 | 0.10.x | :material-shield-alert:{ style="color: #ff9800" } Security Only | August 2026 |

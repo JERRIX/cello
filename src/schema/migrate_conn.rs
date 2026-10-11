@@ -13,7 +13,6 @@
 //! handler) raises instead of panicking.
 
 use std::collections::HashMap;
-use std::str::FromStr;
 
 use pyo3::exceptions::{PyRuntimeError, PyValueError};
 use pyo3::prelude::*;

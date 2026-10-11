@@ -5,7 +5,7 @@
 //! without the GIL, and rows are converted to Python objects on the event-loop
 //! thread when the awaitable resolves.
 //!
-//! API (asyncpg-flavoured, `$1` positional params):
+//! API (`$1` positional params):
 //! ```python
 //! rows = await request.database.fetch("SELECT * FROM users WHERE active = $1", True)
 //! row  = await request.database.fetchrow("SELECT * FROM users WHERE id = $1", 1)
@@ -18,7 +18,6 @@
 //! ```
 
 use std::future::Future;
-use std::str::FromStr;
 use std::sync::Arc;
 
 use deadpool_postgres::{ClientWrapper, Manager, ManagerConfig, Object, Pool, RecyclingMethod};

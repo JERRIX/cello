@@ -1307,7 +1307,7 @@ class App:
         """
         Enable database connection pooling.
 
-        Configures an async connection pool for PostgreSQL, MySQL, or SQLite.
+        Configures an async connection pool for PostgreSQL (native, deadpool-backed).
         Supports connection health monitoring, automatic reconnection, and
         query statistics.
 
@@ -1715,7 +1715,9 @@ class App:
         Args:
             host: Host address to bind to (default: "127.0.0.1")
             port: Port to bind to (default: 8000)
-            debug: Enable debug mode (default: True in dev, False in prod)
+            debug: Enable debug mode (default: True in dev, False in prod). With debug
+                off, unhandled handler errors return a generic 500 and the details
+                are written to the server log instead of the response.
             env: Environment "development" or "production" (default: "development")
             workers: Number of worker threads (default: CPU count)
             reload: Enable hot reload (default: False)
@@ -1807,6 +1809,11 @@ class App:
                 p.terminate()
                 p.wait()
                 time.sleep(0.5)
+
+        # Unhandled handler errors are described to the client only in debug mode;
+        # in production they can carry database messages and row values, so the
+        # client gets a generic 500 and the details go to the server log.
+        self._app.set_expose_errors(bool(debug))
 
         # Configure App
         if logs:
