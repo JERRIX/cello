@@ -57,9 +57,14 @@ pub mod http_client;
 
 // Persistent asyncio event loop used to drive async def handlers.
 pub mod async_loop;
+// Rust future -> asyncio awaitable bridge (single `cello-io` thread) for native I/O.
+pub mod async_bridge;
 
 // Native async data layer: real Postgres pool + Redis client (issue #5).
 pub mod db;
+
+// v1.4.0 - Compiled ORM schema registry (one spec per model).
+pub mod schema;
 
 use pyo3::prelude::*;
 use std::sync::Arc;
@@ -629,10 +634,18 @@ impl Cello {
     /// `transaction` (see `db::PyDatabase`).
     #[pyo3(signature = (config))]
     pub fn enable_database(&mut self, py: Python<'_>, config: PyDatabaseConfig) -> PyResult<()> {
-        let database = db::PyDatabase::connect(&config.url, config.pool_size)?;
+        let tls_opts = db::tls::TlsOptions {
+            sslmode: config.sslmode.clone(),
+            sslrootcert: config.sslrootcert.clone(),
+            sslcert: config.sslcert.clone(),
+            sslkey: config.sslkey.clone(),
+        };
+        let database = db::PyDatabase::connect(&config.url, config.pool_size, tls_opts)?;
+        let sslmode = database.ssl_mode();
         self.database_client = Some(Py::new(py, database)?);
         println!("🗄️  Database pool enabled (native deadpool-postgres):");
         println!("   Pool size: {}", config.pool_size);
+        println!("   TLS:       sslmode={}", sslmode.as_str());
         Ok(())
     }
 
@@ -823,7 +836,7 @@ impl Cello {
         version: Option<String>,
     ) -> PyResult<()> {
         let title = title.unwrap_or_else(|| "Cello API".to_string());
-        let version = version.unwrap_or_else(|| "1.3.0".to_string());
+        let version = version.unwrap_or_else(|| "1.4.0".to_string());
 
         // Store title and version for later use
         let title_clone = title.clone();
@@ -1865,12 +1878,27 @@ pub struct PyDatabaseConfig {
     pub idle_timeout_secs: u64,
     #[pyo3(get, set)]
     pub application_name: Option<String>,
+    /// libpq `sslmode`: `disable` | `prefer` (default) | `require` |
+    /// `verify-ca` | `verify-full`. Overrides an `sslmode` in the URL.
+    #[pyo3(get, set)]
+    pub sslmode: Option<String>,
+    /// PEM file with the CA certificate(s) to trust (`"system"` = bundled
+    /// Mozilla roots). Overrides `sslrootcert` in the URL.
+    #[pyo3(get, set)]
+    pub sslrootcert: Option<String>,
+    /// PEM client certificate (chain) for certificate authentication.
+    #[pyo3(get, set)]
+    pub sslcert: Option<String>,
+    /// PEM private key for `sslcert`.
+    #[pyo3(get, set)]
+    pub sslkey: Option<String>,
 }
 
 #[pymethods]
 impl PyDatabaseConfig {
     #[new]
-    #[pyo3(signature = (url, pool_size=10, min_idle=1, max_lifetime_secs=1800, connection_timeout_secs=5, idle_timeout_secs=300, application_name=None))]
+    #[pyo3(signature = (url, pool_size=10, min_idle=1, max_lifetime_secs=1800, connection_timeout_secs=5, idle_timeout_secs=300, application_name=None, sslmode=None, sslrootcert=None, sslcert=None, sslkey=None))]
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         url: &str,
         pool_size: usize,
@@ -1879,6 +1907,10 @@ impl PyDatabaseConfig {
         connection_timeout_secs: u64,
         idle_timeout_secs: u64,
         application_name: Option<String>,
+        sslmode: Option<String>,
+        sslrootcert: Option<String>,
+        sslcert: Option<String>,
+        sslkey: Option<String>,
     ) -> Self {
         Self {
             url: url.to_string(),
@@ -1888,12 +1920,17 @@ impl PyDatabaseConfig {
             connection_timeout_secs,
             idle_timeout_secs,
             application_name,
+            sslmode,
+            sslrootcert,
+            sslcert,
+            sslkey,
         }
     }
 
     /// Create PostgreSQL config.
     #[staticmethod]
-    #[pyo3(signature = (host, port=5432, database="postgres", user="postgres", password=None, pool_size=10))]
+    #[pyo3(signature = (host, port=5432, database="postgres", user="postgres", password=None, pool_size=10, sslmode=None, sslrootcert=None))]
+    #[allow(clippy::too_many_arguments)]
     pub fn postgres(
         host: &str,
         port: u16,
@@ -1901,13 +1938,27 @@ impl PyDatabaseConfig {
         user: &str,
         password: Option<String>,
         pool_size: usize,
+        sslmode: Option<String>,
+        sslrootcert: Option<String>,
     ) -> Self {
         let url = if let Some(pw) = password {
             format!("postgresql://{user}:{pw}@{host}:{port}/{database}")
         } else {
             format!("postgresql://{user}@{host}:{port}/{database}")
         };
-        Self::new(&url, pool_size, 1, 1800, 5, 300, Some("cello".to_string()))
+        Self::new(
+            &url,
+            pool_size,
+            1,
+            1800,
+            5,
+            300,
+            Some("cello".to_string()),
+            sslmode,
+            sslrootcert,
+            None,
+            None,
+        )
     }
 }
 
@@ -2489,6 +2540,24 @@ fn _cello(_py: Python<'_>, m: &PyModule) -> PyResult<()> {
     m.add_class::<db::PyDatabase>()?;
     m.add_class::<db::PyTransaction>()?;
     m.add_class::<db::PyRedis>()?;
+    // v1.4.0 - Database exception hierarchy (SQLSTATE → DatabaseError subclasses)
+    db::error::register(_py, m)?;
+
+    // v1.4.0 - ORM schema registry
+    m.add_class::<schema::PyModelSpec>()?;
+    m.add_class::<schema::PyFieldSpec>()?;
+    m.add_function(wrap_pyfunction!(schema::python::schema_register, m)?)?;
+    m.add_function(wrap_pyfunction!(schema::python::schema_compile_field, m)?)?;
+    m.add_function(wrap_pyfunction!(schema::python::schema_get, m)?)?;
+    m.add_function(wrap_pyfunction!(schema::python::schema_count, m)?)?;
+    // v1.4.0 Phase 04 - alias validation for aggregates / annotations
+    m.add_function(wrap_pyfunction!(schema::python::schema_ident, m)?)?;
+    // v1.4.0 Phase 05 - experimental `cello migrate` session
+    m.add_class::<schema::migrate_conn::PyMigrationConnection>()?;
+    schema::native::register(m)?;
+    // v1.4.0 Phase 02 - row pipeline (pre-serialized rows, ORM serializer hooks)
+    m.add_class::<db::RawJson>()?;
+    m.add_function(wrap_pyfunction!(schema::runtime::orm_bind, m)?)?;
 
     // v0.7.0+ / v0.8.0 - Enterprise & Data Layer Configuration Classes
     m.add_class::<PyOpenTelemetryConfig>()?;

@@ -5,6 +5,7 @@ icon: material/tag-multiple
 tags:
   - Release Notes
   - Changelog
+  - v1.4.0
   - v1.3.0
   - Migration
 ---
@@ -13,7 +14,27 @@ tags:
 
 ---
 
-## :material-new-box: Latest Release — v1.3.0
+## :material-new-box: Latest Release — v1.4.0
+
+!!! success "Cello v1.4.0 — The Native Core (October 2026)"
+
+    One model declaration, compiled once in Rust, drives the ORM, validation, serialization and OpenAPI.
+
+    **Highlights:**
+
+    - :material-speedometer: **Up to 19.7× faster ORM list endpoints** — return a queryset and the response JSON is built in Rust straight from Postgres rows; single-row get/create are 4–5× faster (paired benchmark, see the notes)
+    - :material-sync: **New async bridge** — database and Redis calls no longer hop through extra threads; async handlers go straight to the persistent loop; fixes the exit-time crash and lost Ctrl-C
+    - :material-shield-lock: **Security** — ORM identifier injection closed, `write_only`/`read_only` fields, Postgres TLS (`sslmode`, `verify-full`)
+    - :material-check-decagram: **Native `body=Model` validation** and OpenAPI request schemas generated from the model
+    - :material-database: **Real Postgres types** — NUMERIC, arrays, intervals, datetimes/UUID binding, `DatabaseError` hierarchy
+    - :material-source-branch: **ORM features** — Q objects, aggregates, `select_related`/`prefetch_related`, `bulk_create`/`bulk_update`, experimental `cello migrate`
+    - :material-alert: **Deliberate breaks** — see the migration notes in the release page
+
+[:material-arrow-right: Read the v1.4.0 release notes](v1.4.0.md)
+
+---
+
+## Previous Release — v1.3.0
 
 !!! success "Cello v1.3.0 — Async Rework, Native Data Layer, Plugin Audit & Three-Pillar Upgrades (July 2026)"
 
@@ -262,13 +283,13 @@ timeline
     pip install --upgrade cello-framework
 
     # Pin to a specific version
-    pip install cello-framework==1.3.0
+    pip install cello-framework==1.4.0
     ```
 
 === "requirements.txt"
 
     ```text
-    cello-framework>=1.3.0,<2.0.0
+    cello-framework>=1.4.0,<2.0.0
     ```
 
 === "pyproject.toml"
@@ -276,7 +297,7 @@ timeline
     ```toml
     [project]
     dependencies = [
-        "cello-framework>=1.3.0,<2.0.0",
+        "cello-framework>=1.4.0,<2.0.0",
     ]
     ```
 

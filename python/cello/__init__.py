@@ -64,6 +64,68 @@ def _validate_wrap(func, body):
     return wrap_handler_with_validation(func)
 
 
+_VALIDATION_ERRORS_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "detail": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "loc": {"type": "array", "items": {"type": "string"}},
+                    "msg": {"type": "string"},
+                    "type": {"type": "string"},
+                },
+            },
+        }
+    },
+}
+
+
+def _component_name(model, components, owners):
+    """A components/schemas name for ``model``: its class name, suffixed when a
+    different model already uses that name. The same model always maps to the
+    same component, so routes sharing a body model share one schema."""
+    base = model.__name__
+    name, n = base, 1
+    while name in owners and owners[name] is not model:
+        n += 1
+        name = f"{base}{n}"
+    return name
+
+
+def _body_openapi_schema(model, components, owners):
+    """OpenAPI schema (a ``$ref``) for a route's ``body=`` model, adding the
+    model to ``components``. ``None`` when the model cannot describe itself
+    (dataclasses, plain classes)."""
+    if model is None:
+        return None
+    from cello._cello import ModelSpec, schema_openapi
+
+    meta = getattr(model, "_meta", None)
+    schema = getattr(meta, "schema", None)
+    if isinstance(schema, ModelSpec):
+        name = _component_name(model, components, owners)
+        if name not in owners:
+            owners[name] = model
+            components[name] = schema_openapi(schema)
+        return {"$ref": f"#/components/schemas/{name}"}
+    json_schema = getattr(model, "model_json_schema", None)
+    if callable(json_schema):
+        name = _component_name(model, components, owners)
+        if name not in owners:
+            try:
+                doc = json_schema(ref_template="#/components/schemas/{model}")
+            except Exception:  # noqa: BLE001 - docs must never break the app
+                return None
+            for def_name, def_schema in doc.pop("$defs", {}).items():
+                components.setdefault(def_name, def_schema)
+            owners[name] = model
+            components[name] = doc
+        return {"$ref": f"#/components/schemas/{name}"}
+    return None
+
+
 def _mark_blocking(handler, blocking):
     """Record an explicit `blocking=` override for the offload policy.
 
@@ -77,7 +139,7 @@ def _mark_blocking(handler, blocking):
         except AttributeError:
             pass  # callable object with no writable __dict__; stays adaptive
     return handler
-from .database import transactional
+from .database import transactional, TransactionAborted
 from .guards import (
     Guard,
     Role as RoleGuard,
@@ -151,6 +213,25 @@ from cello._cello import (
     Database,
     Transaction,
     Redis,
+)
+
+# v1.4.0 - Pre-serialized query rows (`await queryset.json()`)
+from cello._cello import RawJSON
+
+# v1.4.0 - Database exceptions (SQLSTATE-mapped; DatabaseError subclasses RuntimeError)
+from cello._cello import (
+    DatabaseError,
+    IntegrityError,
+    UniqueViolation,
+    NotNullViolation,
+    ForeignKeyViolation,
+    CheckViolation,
+    DataError,
+    ParameterTypeError,
+    ParameterRangeError,
+    ParameterValueError,
+    OperationalError,
+    ProgrammingError,
 )
 
 # v0.9.0 - API Protocol features
@@ -311,6 +392,21 @@ __all__ = [
     "Redis",
     "Transaction",
     "transactional",
+    "TransactionAborted",
+    "RawJSON",
+    # v1.4.0 - Database exceptions
+    "DatabaseError",
+    "IntegrityError",
+    "UniqueViolation",
+    "NotNullViolation",
+    "ForeignKeyViolation",
+    "CheckViolation",
+    "DataError",
+    "ParameterTypeError",
+    "ParameterRangeError",
+    "ParameterValueError",
+    "OperationalError",
+    "ProgrammingError",
     # v0.9.0 - API Protocol features
     "GrpcConfig",
     "KafkaConfig",
@@ -328,7 +424,7 @@ __all__ = [
     "validate_rate_limit_config",
     "validate_tls_config",
 ]
-__version__ = "1.3.0"
+__version__ = "1.4.0"
 
 
 class Blueprint:
@@ -492,7 +588,7 @@ class App:
         self._database = None  # Native Postgres pool; set by enable_database()
         self.state = _AppState()  # Scratch namespace for user-held resources
 
-    def _register_route(self, method: str, path: str, func, tags: list = None, summary: str = None, description: str = None):
+    def _register_route(self, method: str, path: str, func, tags: list = None, summary: str = None, description: str = None, body: type = None):
         """Internal: Register a route and track metadata for OpenAPI."""
         # Extract docstring if no description provided
         doc = func.__doc__ or ""
@@ -506,7 +602,8 @@ class App:
             "handler": func.__name__,
             "summary": route_summary,
             "description": route_description,
-            "tags": tags or []
+            "tags": tags or [],
+            "body": body,
         })
 
     def get(self, path: str, tags: list = None, summary: str = None, description: str = None, guards: list = None, body: type = None, blocking: bool = None):
@@ -531,7 +628,7 @@ class App:
         def decorator(func):
             wrapped = _mark_blocking(_apply_guards(_validate_wrap(self._make_redis_aware(func), body), guards), blocking)
             self._app.get(path, wrapped)
-            self._register_route("GET", path, func, tags, summary, description)
+            self._register_route("GET", path, func, tags, summary, description, body=body)
             return wrapped
         return decorator
 
@@ -540,7 +637,7 @@ class App:
         def decorator(func):
             wrapped = _mark_blocking(_apply_guards(_validate_wrap(self._make_redis_aware(func), body), guards), blocking)
             self._app.post(path, wrapped)
-            self._register_route("POST", path, func, tags, summary, description)
+            self._register_route("POST", path, func, tags, summary, description, body=body)
             return wrapped
         return decorator
 
@@ -549,7 +646,7 @@ class App:
         def decorator(func):
             wrapped = _mark_blocking(_apply_guards(_validate_wrap(self._make_redis_aware(func), body), guards), blocking)
             self._app.put(path, wrapped)
-            self._register_route("PUT", path, func, tags, summary, description)
+            self._register_route("PUT", path, func, tags, summary, description, body=body)
             return wrapped
         return decorator
 
@@ -558,7 +655,7 @@ class App:
         def decorator(func):
             wrapped = _mark_blocking(_apply_guards(_validate_wrap(self._make_redis_aware(func), body), guards), blocking)
             self._app.delete(path, wrapped)
-            self._register_route("DELETE", path, func, tags, summary, description)
+            self._register_route("DELETE", path, func, tags, summary, description, body=body)
             return wrapped
         return decorator
 
@@ -567,7 +664,7 @@ class App:
         def decorator(func):
             wrapped = _mark_blocking(_apply_guards(_validate_wrap(self._make_redis_aware(func), body), guards), blocking)
             self._app.patch(path, wrapped)
-            self._register_route("PATCH", path, func, tags, summary, description)
+            self._register_route("PATCH", path, func, tags, summary, description, body=body)
             return wrapped
         return decorator
 
@@ -1027,7 +1124,7 @@ class App:
         """
         self._app.invalidate_cache(tags)
 
-    def enable_openapi(self, title: str = "Cello API", version: str = "1.3.0"):
+    def enable_openapi(self, title: str = "Cello API", version: str = "1.4.0"):
         """
         Enable OpenAPI documentation endpoints.
 
@@ -1038,7 +1135,7 @@ class App:
 
         Args:
             title: API title (default: "Cello API")
-            version: API version (default: "1.3.0")
+            version: API version (default: "1.4.0")
         """
         # Store for closure
         api_title = title
@@ -1103,6 +1200,8 @@ class App:
         def openapi_handler(request):
             # Auto-generate paths from registered routes
             paths = {}
+            components = {}
+            owners = {}  # component name -> model it documents (dedup)
             
             for route in app_ref._routes:
                 path = route["path"]
@@ -1151,8 +1250,22 @@ class App:
                         for p in params
                     ]
                 
+                # A `body=` model documents its schema (ORM models from the
+                # compiled registry, Pydantic models from their JSON schema).
+                body_schema = _body_openapi_schema(route.get("body"), components, owners)
+                if body_schema is not None:
+                    operation["requestBody"] = {
+                        "required": True,
+                        "content": {"application/json": {"schema": body_schema}},
+                    }
+                    operation["responses"]["400"] = {
+                        "description": "Request body failed validation",
+                        "content": {"application/json": {"schema": {"$ref": "#/components/schemas/ValidationErrors"}}},
+                    }
+                    components.setdefault("ValidationErrors", _VALIDATION_ERRORS_SCHEMA)
                 # Add request body for POST/PUT/PATCH
-                if method in ["post", "put", "patch"]:
+                # Add request body for POST/PUT/PATCH
+                elif method in ["post", "put", "patch"]:
                     operation["requestBody"] = {
                         "content": {
                             "application/json": {
@@ -1173,7 +1286,8 @@ class App:
                     "version": api_version,
                     "description": f"{api_title} - Powered by Cello Framework"
                 },
-                "paths": paths
+                "paths": paths,
+                **({"components": {"schemas": components}} if components else {}),
             }
 
         print("📚 OpenAPI docs enabled:")
@@ -1209,6 +1323,12 @@ class App:
                 pool_size=20,
                 max_lifetime_secs=1800
             ))
+
+        TLS follows libpq's ``sslmode`` (URL query key or ``DatabaseConfig``
+        option): ``disable``, ``prefer`` (default), ``require``, ``verify-ca``,
+        ``verify-full`` (recommended for production), plus ``sslrootcert``,
+        ``sslcert`` and ``sslkey``. Bad certificate paths raise ``ValueError``
+        here. See docs/data-layer.md#tls-encrypted-connections.
         """
         if config is None:
             raise ValueError(

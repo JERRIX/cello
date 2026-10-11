@@ -12,7 +12,8 @@ use std::sync::atomic::{AtomicBool, AtomicU64, AtomicU8, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use crate::json::{python_to_json, python_to_json_bytes_direct};
+use crate::db::RawJson;
+use crate::json::{python_to_json, python_to_json_bytes_direct, Holes};
 use crate::request::Request;
 
 /// Offload decision is made per call by timing the handler (default).
@@ -157,14 +158,18 @@ impl HandlerRegistry {
     /// 1. Caches async detection per handler (avoid inspect.iscoroutine every call)
     /// 2. Caches DI parameter resolution per handler (avoid inspect.signature every call)
     /// 3. Skips DI entirely when no singletons registered (atomic check, no lock)
-    /// 4. Three-phase GIL acquisition: call → await (GIL free) → serialize
+    /// 4. Async handlers: one GIL acquisition on the server thread (call + submit)
     /// 5. Returns HandlerResult::JsonBytes for common dict returns (skips serde_json::Value)
     ///
     /// GIL RELEASE ARCHITECTURE:
     ///   Phase 1 (GIL):    Call Python handler, do DI resolution, detect coroutine.
-    ///   Phase 2 (no GIL): pyo3-asyncio converts coroutine → Rust Future; Tokio awaits it.
-    ///                      GIL is released during Python I/O waits inside the coroutine.
-    ///   Phase 3 (GIL):    Serialize result back to HandlerResult.
+    ///                      A coroutine is submitted to the persistent asyncio loop
+    ///                      under the same GIL hold.
+    ///   Phase 2 (no GIL): The server thread awaits a oneshot channel. The loop runs
+    ///                      the coroutine; its done-callback serializes the result on
+    ///                      the loop thread (which holds the GIL there anyway) and
+    ///                      sends the `HandlerResult` back.
+    ///   Sync handlers serialize inline right after Phase 1.
     pub async fn invoke_async(
         &self,
         handler_id: usize,
@@ -213,7 +218,23 @@ impl HandlerRegistry {
                     } else {
                         raw
                     };
-                    Python::with_gil(|py| serialize(py, final_result.as_ref(py)))
+                    let pending = Python::with_gil(|py| {
+                        Ok::<_, String>(match serialize(py, final_result.as_ref(py))? {
+                            Serialized::Done(r) => return Ok(Err(r)),
+                            Serialized::Pending(body, holes) => {
+                                let (tx, rx) = tokio::sync::oneshot::channel();
+                                fill_holes(py, body, holes, tx);
+                                Ok(rx)
+                            }
+                        })
+                    })?;
+                    match pending {
+                        Err(done) => Ok(done),
+                        // We are on a blocking-pool thread: waiting here is legal.
+                        Ok(rx) => rx
+                            .blocking_recv()
+                            .map_err(|e| format!("Handler channel error: {e}"))?,
+                    }
                 })();
                 let _ = tx.send(result);
             });
@@ -225,15 +246,21 @@ impl HandlerRegistry {
         // ── Phase 1 (GIL): call handler, detect coroutine ──────────────────────
         let threshold = self.offload_threshold_us.load(Ordering::Relaxed);
         let adaptive = policy == POLICY_AUTO && threshold != u64::MAX;
-        let (raw_result, is_coroutine, call_time) = Python::with_gil(|py| {
-            call_handler(
+        let (raw_result, is_coroutine, call_time, pending) = Python::with_gil(|py| {
+            let (raw, is_coro, t) = call_handler(
                 py,
                 &meta,
                 request,
                 &dependency_container,
                 has_dependencies,
                 adaptive,
-            )
+            )?;
+            if !is_coro {
+                return Ok((Some(raw), false, t, None));
+            }
+            // Hand the coroutine to the persistent loop under this same GIL hold.
+            let pending = submit_and_serialize(py, raw.as_ref(py))?;
+            Ok::<_, String>((None, true, t, Some(pending)))
         })?;
 
         // Adaptive promotion: a sync handler that repeatedly exceeds the threshold is
@@ -252,11 +279,28 @@ impl HandlerRegistry {
 
         // HOT PATH: a sync handler is already done — serialize here rather than
         // awaiting another async fn, so the common case has no extra state machine.
-        if !is_coroutine {
-            return Python::with_gil(|py| serialize(py, raw_result.as_ref(py)));
+        match (raw_result, pending) {
+            (Some(raw), _) => {
+                let rx = Python::with_gil(|py| match serialize(py, raw.as_ref(py))? {
+                    Serialized::Done(r) => Ok(Err(r)),
+                    Serialized::Pending(body, holes) => {
+                        let (tx, rx) = tokio::sync::oneshot::channel();
+                        fill_holes(py, body, holes, tx);
+                        Ok::<_, String>(Ok(rx))
+                    }
+                })?;
+                match rx {
+                    Err(done) => Ok(done),
+                    Ok(rx) => rx
+                        .await
+                        .map_err(|e| format!("Handler channel error: {e}"))?,
+                }
+            }
+            (None, Some(rx)) => rx
+                .await
+                .map_err(|e| format!("Handler channel error: {e}"))?,
+            (None, None) => unreachable!("a coroutine is always submitted"),
         }
-
-        drive_and_serialize(raw_result).await
     }
 
     /// Invoke a handler synchronously (legacy method for compatibility).
@@ -292,46 +336,124 @@ impl HandlerRegistry {
     }
 }
 
-/// Drive a coroutine to completion, then serialize its result.
+/// Submit a handler's coroutine to the persistent asyncio loop and return a
+/// channel that yields its serialized result.
 ///
-/// Phase 2 (GIL released during I/O waits) + Phase 3 (GIL) of the inline path.
-async fn drive_and_serialize(coro: PyObject) -> Result<HandlerResult, String> {
-    // ── Phase 2 (GIL released during I/O waits): drive coroutine ────────────
-    //
-    // The coroutine is submitted to a single PERSISTENT asyncio loop (see
-    // `crate::async_loop`) via `run_coroutine_threadsafe`, rather than a fresh
-    // `asyncio.run()` per request. This keeps loop-bound resources (aiohttp/
-    // asyncpg pools, asyncio locks/queues) valid across requests and lets the GIL
-    // be released while the coroutine awaits I/O (so async handlers run
-    // concurrently instead of serialising on the GIL).
-    //
-    // We offload the wait to a blocking thread so the Tokio worker is free; the
-    // wait inside `Future.result()` releases the GIL.
-    let final_result: PyObject = {
-        let (tx, rx) = tokio::sync::oneshot::channel::<Result<PyObject, String>>();
-        tokio::task::spawn_blocking(move || {
-            let result = Python::with_gil(|py| {
-                crate::async_loop::run_coroutine_blocking(py, coro.as_ref(py))
-            });
+/// The coroutine runs on the single PERSISTENT loop (see `crate::async_loop`)
+/// rather than a fresh `asyncio.run()` per request, so loop-bound resources
+/// (client sessions, pools, asyncio locks/queues) stay valid across requests,
+/// and nothing holds the GIL while it awaits I/O. When it finishes, the result
+/// is serialized right there on the loop thread — which holds the GIL at that
+/// point anyway — so the server thread only receives plain bytes and never has
+/// to wait for the GIL again. (Previously a blocking-pool thread was parked on
+/// `Future.result()` for every request and both it and the server thread
+/// re-acquired the GIL afterwards: two extra thread hand-offs per request.)
+fn submit_and_serialize(
+    py: Python<'_>,
+    coro: &PyAny,
+) -> Result<tokio::sync::oneshot::Receiver<Result<HandlerResult, String>>, String> {
+    let (tx, rx) = tokio::sync::oneshot::channel();
+    crate::async_loop::submit_coroutine(
+        py,
+        coro,
+        Box::new(move |py, outcome| {
+            let result = match outcome {
+                Ok(value) => match serialize(py, value) {
+                    Ok(Serialized::Done(r)) => Ok(r),
+                    Ok(Serialized::Pending(body, holes)) => return fill_holes(py, body, holes, tx),
+                    Err(e) => Err(e),
+                },
+                Err(e) => Err(format!("Async handler error: {e}")),
+            };
+            // The receiver is gone only if the request was abandoned (timeout).
             let _ = tx.send(result);
-        });
-        rx.await
-            .map_err(|e| format!("Handler channel error: {e}"))?
-            .map_err(|e| format!("Async handler error: {e}"))?
-    };
-
-    // ── Phase 3 (GIL): serialize result ─────────────────────────────────────
-    Python::with_gil(|py| serialize(py, final_result.as_ref(py)))
+        }),
+    )
+    .map_err(|e| format!("Async handler error: {e}"))?;
+    Ok(rx)
 }
 
-/// Serialize a handler return value into a `HandlerResult`.
+/// A serialized handler return value.
+enum Serialized {
+    Done(HandlerResult),
+    /// The value contains querysets: `body` has a hole for each (see
+    /// [`crate::json::Hole`]); [`fill_holes`] completes it.
+    Pending(Vec<u8>, Holes),
+}
+
+/// Serialize a handler return value.
 ///
 /// PERF: Try direct-to-bytes first (skips the intermediate serde_json::Value).
-fn serialize(py: Python<'_>, obj: &PyAny) -> Result<HandlerResult, String> {
+fn serialize(py: Python<'_>, obj: &PyAny) -> Result<Serialized, String> {
     match python_to_json_bytes_direct(py, obj)? {
-        Some(bytes) => Ok(HandlerResult::JsonBytes(bytes)),
-        None => python_to_json(py, obj).map(HandlerResult::JsonValue),
+        Some((bytes, holes)) if holes.is_empty() => {
+            Ok(Serialized::Done(HandlerResult::JsonBytes(bytes)))
+        }
+        Some((bytes, holes)) => Ok(Serialized::Pending(bytes, holes)),
+        None => python_to_json(py, obj).map(|v| Serialized::Done(HandlerResult::JsonValue(v))),
     }
+}
+
+/// Run the querysets a handler returned and send the completed body to `tx`.
+///
+/// The querysets run on the persistent loop through `cello.orm._run_querysets`
+/// (each one `QuerySet.json()`: rows are encoded to JSON on the I/O thread,
+/// with no Python object per row). The body is spliced together on the loop
+/// thread when they finish. This happens after the handler has returned, so
+/// the queries run outside any transaction the handler had open.
+fn fill_holes(
+    py: Python<'_>,
+    body: Vec<u8>,
+    holes: Holes,
+    tx: tokio::sync::oneshot::Sender<Result<HandlerResult, String>>,
+) {
+    let at: Vec<usize> = holes.iter().map(|h| h.at).collect();
+    let querysets: Vec<PyObject> = holes.into_iter().map(|h| h.queryset).collect();
+    let awaitable = match crate::schema::runtime::run_querysets(py, querysets) {
+        Ok(a) => a,
+        Err(e) => {
+            let _ = tx.send(Err(format!("Handler error: {e}")));
+            return;
+        }
+    };
+    let submitted = crate::async_loop::submit_coroutine(
+        py,
+        awaitable,
+        Box::new(move |_py, outcome| {
+            let result = match outcome {
+                Ok(frags) => splice(&body, &at, frags).map(HandlerResult::JsonBytes),
+                Err(e) => Err(format!("Handler error: {e}")),
+            };
+            let _ = tx.send(result);
+        }),
+    );
+    if let Err(e) = submitted {
+        // `tx` went down with the callback; the receiver reports the failure.
+        e.print(py);
+    }
+}
+
+/// `body` with `frags[i]` (a list of `RawJSON`) inserted at `at[i]`.
+fn splice(body: &[u8], at: &[usize], frags: &PyAny) -> Result<Vec<u8>, String> {
+    let err = |e: PyErr| format!("Handler error: {e}");
+    let frags: Vec<&PyCell<RawJson>> = frags
+        .iter()
+        .map_err(err)?
+        .map(|f| f.map_err(err)?.downcast().map_err(|e| e.to_string()))
+        .collect::<Result<_, _>>()?;
+    if frags.len() != at.len() {
+        return Err("Handler error: queryset results do not match the response".into());
+    }
+    let extra: usize = frags.iter().map(|f| f.get().bytes.len()).sum();
+    let mut out = Vec::with_capacity(body.len() + extra);
+    let mut prev = 0;
+    for (pos, frag) in at.iter().zip(frags) {
+        out.extend_from_slice(&body[prev..*pos]);
+        out.extend_from_slice(&frag.get().bytes);
+        prev = *pos;
+    }
+    out.extend_from_slice(&body[prev..]);
+    Ok(out)
 }
 
 /// Call the Python handler under the GIL, resolving DI and detecting a coroutine.
