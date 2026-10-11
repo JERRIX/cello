@@ -28,6 +28,11 @@ _PORT = [17600]
 SLEEP = 0.010
 CONCURRENCY = 20
 
+# Tests that compare elapsed time against the serialised time use a longer sleep
+# so the gap (seconds) dwarfs the HTTP client's own per-request overhead, which
+# dominates a 10 ms sleep on slow shared CI runners.
+TIMING_SLEEP = 0.050
+
 
 def _next_port():
     _PORT[0] += 1
@@ -89,7 +94,7 @@ def test_blocking_handler_is_offloaded_and_runs_concurrently():
 
     @app.get("/slow")
     def slow(request):
-        time.sleep(SLEEP)
+        time.sleep(TIMING_SLEEP)
         return {"tid": threading.get_ident()}
 
     base = _serve(app)
@@ -97,16 +102,15 @@ def test_blocking_handler_is_offloaded_and_runs_concurrently():
     # First call is inline and pays the cost; it promotes the handler.
     requests.get(base + "/slow", timeout=30)
 
-    n = 100
+    n = 60
     elapsed, tids = _hammer(base, "/slow", n)
 
-    # Serialised, 100 x 10ms could not finish in under a second.
-    serial = n * SLEEP
+    # Serialised, 60 x 50ms would take 3 s; concurrently it is a fraction of that.
+    serial = n * TIMING_SLEEP
     assert elapsed < serial / 2, (
         f"{n} blocking requests took {elapsed:.2f}s; "
         f"serialised would be ~{serial:.2f}s — handler was not offloaded"
     )
-    assert n / elapsed > 100, "throughput still at the one-at-a-time ceiling"
     # Spread across the pool, not pinned to the server thread.
     assert len(set(tids)) > 1
 
@@ -136,15 +140,18 @@ def test_blocking_true_offloads_from_first_request():
 
     @app.get("/marked")
     def marked(request):
-        time.sleep(SLEEP)
+        time.sleep(TIMING_SLEEP)
         return {"tid": threading.get_ident()}
 
     base = _serve(app)
 
     # No warmup: concurrency must be present immediately.
-    n = 60
+    n = 40
     elapsed, tids = _hammer(base, "/marked", n)
-    assert elapsed < (n * SLEEP) / 2
+    assert elapsed < (n * TIMING_SLEEP) / 2, (
+        f"{n} blocking=True requests took {elapsed:.2f}s; "
+        f"serialised would be ~{n * TIMING_SLEEP:.2f}s"
+    )
     assert len(set(tids)) > 1
 
 
